@@ -1,0 +1,17 @@
+{
+  "name": "SkateFlow",
+  "short_name": "SkateFlow",
+  "description": "Skater progress, cards, contest runs, and coach demos.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
