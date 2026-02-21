@@ -74,8 +74,8 @@ const DEFAULT_PARK_PROFILES = [
 const DEFAULT_CLOUD_SYNC = {
   enabled: false,
   provider: "firebase-firestore-rest",
-  projectId: "",
-  apiKey: "",
+  projectId: "skaterflow",
+  apiKey: "AIzaSyB8vZjXkvtNXojiI1woP6S-K-JFL87PaB0",
   documentPath: "skateflow/sharedState",
   autoSyncEnabled: false,
   autoSyncIntervalMin: 3,
@@ -116,7 +116,7 @@ const INITIAL_STORE = {
   betaCheck: createDefaultBetaCheck(),
 };
 
-const VALID_VIEWS = new Set(["log", "cards", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "settings"]);
+const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "settings"]);
 const MAX_UPLOAD_COUNT = 24;
 const MAX_MEDIA_FILE_BYTES = 80 * 1024 * 1024;
 const MAX_IMAGE_FILE_BYTES = 25 * 1024 * 1024;
@@ -239,6 +239,13 @@ function safeRevokeObjectURL(url) {
   } catch {
     // ignore
   }
+}
+
+function isLikelyIOSDevice() {
+  if (typeof navigator === "undefined") return false;
+  const ua = String(navigator.userAgent || "");
+  const platform = String(navigator.platform || "");
+  return /iPad|iPhone|iPod/i.test(ua) || (platform === "MacIntel" && Number(navigator.maxTouchPoints || 0) > 1);
 }
 
 async function blobToDataUrl(blob) {
@@ -447,8 +454,8 @@ function normalizeStoreShape(raw) {
       ...toObj(src.cloudSync, {}),
       enabled: !!src?.cloudSync?.enabled,
       provider: DEFAULT_CLOUD_SYNC.provider,
-      projectId: String(src?.cloudSync?.projectId || ""),
-      apiKey: String(src?.cloudSync?.apiKey || ""),
+      projectId: String(src?.cloudSync?.projectId || DEFAULT_CLOUD_SYNC.projectId),
+      apiKey: String(src?.cloudSync?.apiKey || DEFAULT_CLOUD_SYNC.apiKey),
       documentPath: cloudSafeDocPath(src?.cloudSync?.documentPath),
       autoSyncEnabled: !!src?.cloudSync?.autoSyncEnabled,
       autoPullOnLoad: src?.cloudSync?.autoPullOnLoad !== false,
@@ -494,6 +501,68 @@ function formatShortDate(iso) {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
   return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
+
+function isValidISODate(iso) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(iso || ""));
+}
+
+function isValidTimeHHMM(v) {
+  return /^\d{2}:\d{2}$/.test(String(v || ""));
+}
+
+function parseLocalDateTime(dateISO, timeHHMM = "00:00") {
+  const safeDate = isValidISODate(dateISO) ? String(dateISO) : todayISO();
+  const safeTime = isValidTimeHHMM(timeHHMM) ? String(timeHHMM) : "00:00";
+  return new Date(`${safeDate}T${safeTime}:00`);
+}
+
+function toISODateLocal(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  const day = String(dt.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+function monthKeyFromDate(d) {
+  const dt = d instanceof Date ? d : new Date(d);
+  const y = dt.getFullYear();
+  const m = String(dt.getMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+}
+
+function shiftMonth(monthKey, delta) {
+  const [y, m] = String(monthKey || "").split("-").map(Number);
+  const dt = new Date((Number(y) || new Date().getFullYear()), Math.max(0, (Number(m) || 1) - 1), 1);
+  dt.setMonth(dt.getMonth() + (Number(delta) || 0));
+  return monthKeyFromDate(dt);
+}
+
+function formatMonthLabel(monthKey) {
+  const [y, m] = String(monthKey || "").split("-").map(Number);
+  const dt = new Date(Number(y) || new Date().getFullYear(), Math.max(0, (Number(m) || 1) - 1), 1);
+  return dt.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+}
+
+function buildMonthGrid(monthKey) {
+  const [y, m] = String(monthKey || "").split("-").map(Number);
+  const start = new Date(Number(y) || new Date().getFullYear(), Math.max(0, (Number(m) || 1) - 1), 1);
+  const month = start.getMonth();
+  const startDay = start.getDay(); // 0=Sun
+  const firstCell = new Date(start);
+  firstCell.setDate(firstCell.getDate() - startDay);
+  const cells = [];
+  for (let i = 0; i < 42; i += 1) {
+    const d = new Date(firstCell);
+    d.setDate(firstCell.getDate() + i);
+    cells.push({
+      dateISO: toISODateLocal(d),
+      dayNum: d.getDate(),
+      inMonth: d.getMonth() === month,
+    });
+  }
+  return cells;
 }
 
 function weatherCodeLabel(code) {
@@ -861,11 +930,28 @@ async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
 function downloadTextFile(filename, text, mime = "text/plain") {
   const blob = new Blob([text], { type: `${mime};charset=utf-8` });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement("a");
-  a.href = url;
-  a.download = filename;
-  a.click();
-  safeRevokeObjectURL(url);
+  let clicked = false;
+  try {
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    a.rel = "noopener noreferrer";
+    a.style.display = "none";
+    document.body.appendChild(a);
+    a.click();
+    clicked = true;
+    document.body.removeChild(a);
+
+    // iOS Safari can ignore `download`; opening a preview tab makes .ics import reliable.
+    if (isLikelyIOSDevice() && String(mime).includes("calendar")) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  } catch {
+    clicked = false;
+  } finally {
+    window.setTimeout(() => safeRevokeObjectURL(url), 2000);
+  }
+  return clicked;
 }
 
 function exportCSV(sessions) {
@@ -920,9 +1006,11 @@ function exportICSPractice(dateISO, title, notes, opts = {}) {
   const formatLocal = (d) =>
     `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
 
-  const [hh, mm] = String(time || "17:00").split(":").map((x) => parseInt(x, 10));
+  const safeDate = /^\d{4}-\d{2}-\d{2}$/.test(String(dateISO || "")) ? String(dateISO) : todayISO();
+  const safeTime = /^\d{2}:\d{2}$/.test(String(time || "")) ? String(time) : "17:00";
+  const [hh, mm] = safeTime.split(":").map((x) => parseInt(x, 10));
 
-  const startLocal = new Date(`${String(dateISO || todayISO())}T${pad(hh || 0)}:${pad(mm || 0)}:00`);
+  const startLocal = new Date(`${safeDate}T${pad(hh || 0)}:${pad(mm || 0)}:00`);
   const endLocal = new Date(startLocal.getTime() + Math.max(5, Number(durationMin) || 60) * 60 * 1000);
 
   const safeNotes = String(notes || "").replace(/\r?\n/g, " ");
@@ -953,7 +1041,7 @@ function exportICSPractice(dateISO, title, notes, opts = {}) {
     "END:VCALENDAR",
   ].join("\n");
 
-  downloadTextFile(`skateflow-practice-${dateISO}.ics`, ics, "text/calendar");
+  return downloadTextFile(`skateflow-practice-${safeDate}.ics`, ics, "text/calendar");
 }
 
 function parseICSDateTime(value) {
@@ -1222,6 +1310,13 @@ export default function SkateTrainingPlanApp() {
     setSlice({ draft: { ...draft, ...patch } });
     setLastDraftSavedAt(new Date());
   };
+  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
+  const switchView = (nextView) => {
+    setUI({ view: nextView });
+    if (typeof window !== "undefined" && window.innerWidth < 640) {
+      setMobileTabsOpen(false);
+    }
+  };
 
   const betaStats = useMemo(() => {
     const total = BETA_CHECK_ITEMS.length;
@@ -1285,6 +1380,56 @@ export default function SkateTrainingPlanApp() {
   const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach";
   const canComment = activeMember?.role === "owner" || activeMember?.role === "coach";
   const canManageTeam = activeMember?.role === "owner";
+  const [calendarMonthKey, setCalendarMonthKey] = useState(() => monthKeyFromDate(new Date()));
+  const reminderFiredRef = useRef(new Set());
+
+  const activePracticeEvents = useMemo(() => {
+    const list = toArray(practiceEvents)
+      .filter((ev) => {
+        const evSkaterId = String(ev?.skaterId || "");
+        return !evSkaterId || evSkaterId === ui.activeSkaterId;
+      })
+      .map((ev) => ({
+        ...ev,
+        dateISO: isValidISODate(ev?.dateISO) ? String(ev.dateISO) : todayISO(),
+        time: isValidTimeHHMM(ev?.time) ? String(ev.time) : "17:00",
+      }))
+      .sort((a, b) => {
+        const aMs = parseLocalDateTime(a.dateISO, a.time).getTime();
+        const bMs = parseLocalDateTime(b.dateISO, b.time).getTime();
+        return aMs - bMs;
+      });
+    return list;
+  }, [practiceEvents, ui.activeSkaterId]);
+
+  const calendarGrid = useMemo(() => buildMonthGrid(calendarMonthKey), [calendarMonthKey]);
+  const practiceEventsByDate = useMemo(() => {
+    const by = new Map();
+    for (const ev of activePracticeEvents) {
+      const key = String(ev.dateISO || "");
+      if (!by.has(key)) by.set(key, []);
+      by.get(key).push(ev);
+    }
+    return by;
+  }, [activePracticeEvents]);
+
+  const nextPracticeEvent = useMemo(() => {
+    const now = Date.now();
+    return activePracticeEvents.find((ev) => parseLocalDateTime(ev.dateISO, ev.time).getTime() >= now) || null;
+  }, [activePracticeEvents]);
+  const nextPracticeCountdown = useMemo(() => {
+    if (!nextPracticeEvent) return "No upcoming practice";
+    const now = Date.now();
+    const ms = parseLocalDateTime(nextPracticeEvent.dateISO, nextPracticeEvent.time).getTime() - now;
+    if (ms <= 0) return "Starting now";
+    const totalMin = Math.round(ms / 60000);
+    const days = Math.floor(totalMin / 1440);
+    const hours = Math.floor((totalMin % 1440) / 60);
+    const mins = totalMin % 60;
+    if (days > 0) return `In ${days}d ${hours}h`;
+    if (hours > 0) return `In ${hours}h ${mins}m`;
+    return `In ${mins}m`;
+  }, [nextPracticeEvent]);
 
   const tasks = useMemo(() => plans[draft.dayType] || [], [plans, draft.dayType]);
   const totalTarget = useMemo(() => tasks.reduce((sum, t) => sum + (Number(t.target) || 0), 0), [tasks]);
@@ -3066,6 +3211,33 @@ export default function SkateTrainingPlanApp() {
     toast("New message", "Posted.", "info");
   };
 
+  useEffect(() => {
+    if (!reminders.enabled) return undefined;
+    if (typeof Notification === "undefined") return undefined;
+    if (Notification.permission !== "granted") return undefined;
+    const timerId = window.setInterval(() => {
+      const now = Date.now();
+      for (const ev of activePracticeEvents) {
+        const eventAt = parseLocalDateTime(ev.dateISO, ev.time).getTime();
+        const remindMin = Math.max(0, Number(ev?.remindMin) || Number(practiceSettings.remindMin) || 0);
+        const remindAt = eventAt - remindMin * 60 * 1000;
+        const key = `${ev.id}:${remindAt}`;
+        if (reminderFiredRef.current.has(key)) continue;
+        if (now >= remindAt && now <= eventAt + 60000) {
+          reminderFiredRef.current.add(key);
+          try {
+            new Notification("SkateFlow Reminder", {
+              body: `${ev.title || "Practice"} • ${ev.dateISO} ${ev.time} (${ev.skaterName || activeSkater?.name || "Skater"})`,
+            });
+          } catch {
+            // ignore notification failures
+          }
+        }
+      }
+    }, 30000);
+    return () => window.clearInterval(timerId);
+  }, [reminders.enabled, activePracticeEvents, practiceSettings.remindMin, activeSkater?.name]);
+
   const enableNotifications = async () => {
     if (!("Notification" in window)) {
       alert("Notifications not supported in this browser.");
@@ -3081,12 +3253,14 @@ export default function SkateTrainingPlanApp() {
     toast("Notifications enabled", "Browser alerts allowed.", "success");
   };
 
-  const addPracticeToCalendar = (dateOverride = draft.date) => {
+  const createPracticeEvent = (dateOverride = draft.date, opts = {}) => {
     if (!activeSkater) return;
+    const safeDate = isValidISODate(String(dateOverride || "")) ? String(dateOverride) : todayISO();
+    const safeTime = isValidTimeHHMM(String(reminders.time || "")) ? String(reminders.time) : "17:00";
     const ev = {
       id: `pe-${uid()}`,
-      dateISO: dateOverride,
-      time: reminders.time,
+      dateISO: safeDate,
+      time: safeTime,
       durationMin: Number(practiceSettings.durationMin) || 60,
       remindMin: Number(practiceSettings.remindMin) || 60,
       title: practiceSettings.title || "SkateFlow Practice",
@@ -3096,13 +3270,38 @@ export default function SkateTrainingPlanApp() {
       createdAt: new Date().toISOString(),
     };
     setSlice({ practiceEvents: [ev, ...practiceEvents].slice(0, 50) });
-    exportICSPractice(ev.dateISO, ev.title, ev.notes, { time: ev.time, durationMin: ev.durationMin, remindMin: ev.remindMin });
-    toast("Calendar event downloaded", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
+    if (opts.downloadICS !== false) {
+      const downloaded = exportICSPractice(ev.dateISO, ev.title, ev.notes, {
+        time: ev.time,
+        durationMin: ev.durationMin,
+        remindMin: ev.remindMin,
+      });
+      if (downloaded) {
+        toast("Calendar event ready", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
+      } else {
+        toast("Calendar export failed", "Could not create calendar file on this browser.", "warn");
+      }
+      return ev;
+    }
+    toast("Practice scheduled", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
+    return ev;
+  };
+
+  const addPracticeToCalendar = (dateOverride = draft.date) => {
+    createPracticeEvent(dateOverride, { downloadICS: true });
   };
 
   const exportPracticeEvent = (ev) => {
-    exportICSPractice(ev.dateISO, ev.title, ev.notes, { time: ev.time, durationMin: ev.durationMin, remindMin: ev.remindMin });
-    toast("iCal downloaded", `${ev.dateISO} ${ev.time}`, "success");
+    const downloaded = exportICSPractice(ev.dateISO, ev.title, ev.notes, {
+      time: ev.time,
+      durationMin: ev.durationMin,
+      remindMin: ev.remindMin,
+    });
+    if (downloaded) {
+      toast("iCal ready", `${ev.dateISO} ${ev.time}`, "success");
+    } else {
+      toast("iCal failed", "Could not create calendar file on this browser.", "warn");
+    }
   };
 
   const removePracticeEvent = (id) => {
@@ -3425,7 +3624,7 @@ export default function SkateTrainingPlanApp() {
     : "rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10";
 
   return (
-    <div className={isLightMode ? "min-h-screen bg-slate-100 text-slate-900" : "min-h-screen bg-gradient-to-b from-black via-slate-950 to-black text-white"}>
+    <div className={isLightMode ? "min-h-dvh overflow-x-hidden bg-slate-100 text-slate-900" : "min-h-dvh overflow-x-hidden bg-gradient-to-b from-black via-slate-950 to-black text-white"}>
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((x) => x.id !== id))} />
       <AnimatePresence>
         {xpPop ? (
@@ -3696,7 +3895,7 @@ export default function SkateTrainingPlanApp() {
       <div className="mx-auto max-w-5xl p-4 sm:p-6">
         <div
           className={
-            "sticky top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-3 backdrop-blur border-b " +
+            "sm:sticky sm:top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-3 backdrop-blur border-b " +
             (isLightMode ? "bg-gradient-to-b from-white/95 to-slate-100/85 border-slate-300/70" : "bg-gradient-to-b from-black/95 to-black/70 border-white/10")
           }
         >
@@ -3767,17 +3966,32 @@ export default function SkateTrainingPlanApp() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-4 sm:grid-cols-5 lg:grid-cols-10 gap-2">
-            <TabButton active={ui.view === "log"} icon={ClipboardList} label="Log" lightMode={isLightMode} onClick={() => setUI({ view: "log" })} />
-            <TabButton active={ui.view === "cards"} icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => setUI({ view: "cards" })} />
-            <TabButton active={ui.view === "dash"} icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => setUI({ view: "dash" })} />
-            <TabButton active={ui.view === "plans"} icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => setUI({ view: "plans" })} />
-            <TabButton active={ui.view === "coach"} icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => setUI({ view: "coach" })} />
-            <TabButton active={ui.view === "skateday"} icon={MapPin} label="Skate Day" lightMode={isLightMode} onClick={() => setUI({ view: "skateday" })} />
-            <TabButton active={ui.view === "contest"} icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => setUI({ view: "contest" })} />
-            <TabButton active={ui.view === "team"} icon={Users} label="Team" lightMode={isLightMode} onClick={() => setUI({ view: "team" })} />
-            <TabButton active={ui.view === "chat"} icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => setUI({ view: "chat" })} />
-            <TabButton active={ui.view === "settings"} icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => setUI({ view: "settings" })} />
+          <div className="mt-3 sm:hidden">
+            <button
+              type="button"
+              onClick={() => setMobileTabsOpen((v) => !v)}
+              className={
+                "w-full rounded-2xl border px-3 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2 " +
+                (isLightMode ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-100" : "border-white/10 bg-white/5 hover:bg-white/10")
+              }
+            >
+              {mobileTabsOpen ? "Hide sections" : "Show sections"}
+              {mobileTabsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+            </button>
+          </div>
+
+          <div className={(mobileTabsOpen ? "mt-3 grid grid-cols-4 gap-2" : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-11 sm:gap-2"}>
+            <TabButton active={ui.view === "log"} icon={ClipboardList} label="Log" lightMode={isLightMode} onClick={() => switchView("log")} />
+            <TabButton active={ui.view === "cards"} icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => switchView("cards")} />
+            <TabButton active={ui.view === "calendar"} icon={Calendar} label="Calendar" lightMode={isLightMode} onClick={() => switchView("calendar")} />
+            <TabButton active={ui.view === "dash"} icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
+            <TabButton active={ui.view === "plans"} icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
+            <TabButton active={ui.view === "coach"} icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} />
+            <TabButton active={ui.view === "skateday"} icon={MapPin} label="Skate Day" lightMode={isLightMode} onClick={() => switchView("skateday")} />
+            <TabButton active={ui.view === "contest"} icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
+            <TabButton active={ui.view === "team"} icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} />
+            <TabButton active={ui.view === "chat"} icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => switchView("chat")} />
+            <TabButton active={ui.view === "settings"} icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => switchView("settings")} />
           </div>
         </div>
 
@@ -4116,6 +4330,139 @@ export default function SkateTrainingPlanApp() {
                   No cards in this binder filter yet.
                 </div>
               ) : null}
+            </motion.div>
+          ) : null}
+
+          {ui.view === "calendar" ? (
+            <motion.div key="calendar" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
+              <div className={isLightMode ? "rounded-3xl bg-white ring-1 ring-slate-300 p-4 sm:p-6" : "rounded-3xl bg-white/5 ring-1 ring-white/10 p-4 sm:p-6"}>
+                <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
+                  <div>
+                    <div className={isLightMode ? "text-xs tracking-widest text-slate-500" : "text-xs tracking-widest text-white/50"}>CALENDAR</div>
+                    <div className="mt-1 text-xl font-extrabold">Practice & Training Calendar</div>
+                    <div className={isLightMode ? "mt-1 text-sm text-slate-600" : "mt-1 text-sm text-white/60"}>
+                      Built-in schedule with reminder widget for {activeSkater?.name || "active skater"}.
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => createPracticeEvent(draft.date, { downloadICS: false })}
+                      className={isLightMode ? "rounded-2xl bg-slate-900 text-white px-4 py-2 text-sm font-bold hover:bg-slate-800" : "rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"}
+                    >
+                      <Plus className="h-4 w-4 inline-block mr-2" />
+                      Add Practice
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addPracticeToCalendar(draft.date)}
+                      className={isLightMode ? "rounded-2xl bg-slate-100 ring-1 ring-slate-300 text-slate-900 px-4 py-2 text-sm font-semibold hover:bg-slate-200" : "rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10"}
+                    >
+                      <Download className="h-4 w-4 inline-block mr-2" />
+                      Export iCal
+                    </button>
+                  </div>
+                </div>
+
+                <div className={isLightMode ? "mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-300 p-4" : "mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4"}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Reminder Widget</div>
+                      <div className="text-sm font-bold">
+                        {nextPracticeEvent
+                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${nextPracticeEvent.time}`
+                          : "No upcoming practice"}
+                      </div>
+                    </div>
+                    <Pill tone={nextPracticeEvent ? "cyan" : "neutral"} lightMode={isLightMode}>
+                      <Bell className="h-3.5 w-3.5" /> {nextPracticeCountdown}
+                    </Pill>
+                  </div>
+                  <div className={isLightMode ? "mt-2 text-xs text-slate-600" : "mt-2 text-xs text-white/60"}>
+                    This in-app widget reminder works with browser notifications while the app is open.
+                  </div>
+                </div>
+
+                <div className="mt-4 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonthKey((p) => shiftMonth(p, -1))}
+                    className={isLightMode ? "rounded-xl bg-slate-100 ring-1 ring-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-200" : "rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/10"}
+                  >
+                    Prev
+                  </button>
+                  <div className="text-sm font-extrabold">{formatMonthLabel(calendarMonthKey)}</div>
+                  <button
+                    type="button"
+                    onClick={() => setCalendarMonthKey((p) => shiftMonth(p, 1))}
+                    className={isLightMode ? "rounded-xl bg-slate-100 ring-1 ring-slate-300 px-3 py-2 text-sm font-semibold hover:bg-slate-200" : "rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/10"}
+                  >
+                    Next
+                  </button>
+                </div>
+
+                <div className={isLightMode ? "mt-3 grid grid-cols-7 gap-2 text-[11px] text-slate-600" : "mt-3 grid grid-cols-7 gap-2 text-[11px] text-white/60"}>
+                  {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
+                    <div key={d} className="text-center font-semibold">
+                      {d}
+                    </div>
+                  ))}
+                </div>
+                <div className="mt-2 grid grid-cols-7 gap-2">
+                  {calendarGrid.map((cell) => {
+                    const events = practiceEventsByDate.get(cell.dateISO) || [];
+                    const isToday = cell.dateISO === todayISO();
+                    return (
+                      <button
+                        key={cell.dateISO}
+                        type="button"
+                        onClick={() => {
+                          setDraft({ date: cell.dateISO });
+                          createPracticeEvent(cell.dateISO, { downloadICS: false });
+                        }}
+                        className={
+                          "min-h-[84px] rounded-xl border p-2 text-left transition " +
+                          (isLightMode
+                            ? `${cell.inMonth ? "bg-white border-slate-300" : "bg-slate-100 border-slate-200 text-slate-400"} ${isToday ? "ring-2 ring-cyan-400/60" : ""}`
+                            : `${cell.inMonth ? "bg-black/30 border-white/10" : "bg-white/5 border-white/5 text-white/35"} ${isToday ? "ring-2 ring-cyan-400/60" : ""}`)
+                        }
+                        title={`${cell.dateISO}${events.length ? ` • ${events.length} event(s)` : ""}`}
+                      >
+                        <div className="flex items-center justify-between gap-1">
+                          <span className="text-xs font-bold">{cell.dayNum}</span>
+                          {events.length ? <span className="text-[10px] font-bold">{events.length}</span> : null}
+                        </div>
+                        <div className="mt-1 space-y-1">
+                          {events.slice(0, 2).map((ev) => (
+                            <div key={ev.id} className="truncate text-[10px]">
+                              {ev.time} {ev.title || "Practice"}
+                            </div>
+                          ))}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4">
+                  <div className="text-sm font-semibold">Upcoming</div>
+                  <div className="mt-2 space-y-2">
+                    {activePracticeEvents.slice(0, 8).map((ev) => (
+                      <div key={ev.id} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 px-3 py-2" : "rounded-xl bg-black/30 ring-1 ring-white/10 px-3 py-2"}>
+                        <div className="text-sm font-bold">
+                          {ev.dateISO} • {ev.time} • {ev.title || "Practice"}
+                        </div>
+                        <div className={isLightMode ? "text-xs text-slate-600" : "text-xs text-white/60"}>
+                          Reminder {Math.max(0, Number(ev.remindMin) || 0)} min before
+                        </div>
+                      </div>
+                    ))}
+                    {!activePracticeEvents.length ? (
+                      <div className={isLightMode ? "text-sm text-slate-600" : "text-sm text-white/60"}>No practices scheduled yet.</div>
+                    ) : null}
+                  </div>
+                </div>
+              </div>
             </motion.div>
           ) : null}
 
@@ -5495,6 +5842,19 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
   const hero = pickHeroMedia(session.media || []);
   const totalMissed = (session.tasks || []).reduce((sum, t) => sum + (Number(t.missed) || 0), 0);
   const [commentText, setCommentText] = useState("");
+  const [isOnline, setIsOnline] = useState(() => (typeof navigator === "undefined" ? true : navigator.onLine));
+  const isOfflineOnlyMedia = (m) => !isOnline && !String(m?.dataUrl || "");
+
+  useEffect(() => {
+    const onOnline = () => setIsOnline(true);
+    const onOffline = () => setIsOnline(false);
+    window.addEventListener("online", onOnline);
+    window.addEventListener("offline", onOffline);
+    return () => {
+      window.removeEventListener("online", onOnline);
+      window.removeEventListener("offline", onOffline);
+    };
+  }, []);
 
   return (
     <div className={`relative overflow-hidden rounded-3xl bg-gradient-to-br from-zinc-950 via-black to-zinc-900 p-4 shadow-2xl ring-1 ${tier.ring}`}>
@@ -5520,7 +5880,11 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
         {hero ? (
           <div className="mb-3 overflow-hidden rounded-2xl ring-1 ring-white/10 bg-black">
             <div className="aspect-video w-full">
-              {hero.type?.startsWith("video/") ? (
+              {isOfflineOnlyMedia(hero) ? (
+                <div className="h-full w-full flex items-center justify-center px-4 text-center text-xs text-white/70">
+                  Offline preview unavailable for this clip. Reconnect or trim/compress to keep a local copy.
+                </div>
+              ) : hero.type?.startsWith("video/") ? (
                 <video className="h-full w-full object-cover" src={mediaSrc(hero)} controls playsInline />
               ) : (
                 <img
@@ -5588,7 +5952,11 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
                 return (
                   <div key={m.id} className="rounded-2xl overflow-hidden bg-black ring-1 ring-white/10">
                     <div className="aspect-square">
-                      {isVideo ? (
+                      {isOfflineOnlyMedia(m) ? (
+                        <div className="h-full w-full flex items-center justify-center px-2 text-center text-[11px] text-white/70">
+                          Offline unavailable
+                        </div>
+                      ) : isVideo ? (
                         <video src={mediaSrc(m)} className="h-full w-full object-cover" controls playsInline />
                       ) : (
                         <img
