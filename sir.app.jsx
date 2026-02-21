@@ -160,8 +160,15 @@ function cloudSafeDocPath(path) {
   return cleaned.join("/");
 }
 
+function normalizeFirebaseProjectId(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]/g, "");
+}
+
 function buildFirestoreDocUrl(config) {
-  const projectId = String(config?.projectId || "").trim();
+  const projectId = normalizeFirebaseProjectId(config?.projectId);
   const apiKey = String(config?.apiKey || "").trim();
   const path = cloudSafeDocPath(config?.documentPath);
   if (!projectId || !apiKey) return "";
@@ -454,7 +461,7 @@ function normalizeStoreShape(raw) {
       ...toObj(src.cloudSync, {}),
       enabled: !!src?.cloudSync?.enabled,
       provider: DEFAULT_CLOUD_SYNC.provider,
-      projectId: String(src?.cloudSync?.projectId || DEFAULT_CLOUD_SYNC.projectId),
+      projectId: normalizeFirebaseProjectId(src?.cloudSync?.projectId || DEFAULT_CLOUD_SYNC.projectId),
       apiKey: String(src?.cloudSync?.apiKey || DEFAULT_CLOUD_SYNC.apiKey),
       documentPath: cloudSafeDocPath(src?.cloudSync?.documentPath),
       autoSyncEnabled: !!src?.cloudSync?.autoSyncEnabled,
@@ -1969,13 +1976,14 @@ export default function SkateTrainingPlanApp() {
 
   const updateCloudSync = (patch) => {
     const next = { ...cloudSync, ...patch };
+    next.projectId = normalizeFirebaseProjectId(next.projectId);
     next.documentPath = cloudSafeDocPath(next.documentPath);
     next.autoSyncIntervalMin = Math.max(1, Number(next.autoSyncIntervalMin) || DEFAULT_CLOUD_SYNC.autoSyncIntervalMin);
     setSlice({ cloudSync: next });
   };
 
   const validateCloudSyncConfig = () => {
-    const projectId = String(cloudSync.projectId || "").trim();
+    const projectId = normalizeFirebaseProjectId(cloudSync.projectId);
     const apiKey = String(cloudSync.apiKey || "").trim();
     const documentPath = cloudSafeDocPath(cloudSync.documentPath);
     if (!projectId || !apiKey) {
@@ -1986,12 +1994,17 @@ export default function SkateTrainingPlanApp() {
 
   const parseFirestoreError = async (res) => {
     const raw = await res.text();
+    let msg = "";
     try {
       const parsed = JSON.parse(raw);
-      return parsed?.error?.message || raw || `HTTP ${res.status}`;
+      msg = parsed?.error?.message || raw || `HTTP ${res.status}`;
     } catch {
-      return raw || `HTTP ${res.status}`;
+      msg = raw || `HTTP ${res.status}`;
     }
+    if (/Permission denied on resource project/i.test(msg)) {
+      return `${msg} Use lowercase project ID "skaterflow" and make sure Firestore Database is created in Firebase.`;
+    }
+    return msg;
   };
 
   const pushCloudSync = async (opts = {}) => {
