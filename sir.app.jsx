@@ -123,7 +123,7 @@ const MAX_IMAGE_FILE_BYTES = 25 * 1024 * 1024;
 const MAX_BACKUP_BYTES = 8 * 1024 * 1024;
 const MAX_ICS_BYTES = 2 * 1024 * 1024;
 const MAX_EMBEDDED_MEDIA_BYTES = 2 * 1024 * 1024;
-const BUILD_STAMP = "beta-2026-02-21-7";
+const BUILD_STAMP = "beta-2026-02-22-1";
 
 const BETA_CHECK_ITEMS = [
   { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad." },
@@ -4598,7 +4598,7 @@ export default function SkateTrainingPlanApp() {
                     <div className={isLightMode ? "text-xs tracking-widest text-slate-500" : "text-xs tracking-widest text-white/50"}>CALENDAR</div>
                     <div className="mt-1 text-xl font-extrabold">Practice & Training Calendar</div>
                     <div className={isLightMode ? "mt-1 text-sm text-slate-600" : "mt-1 text-sm text-white/60"}>
-                      Built-in schedule with reminder widget for {activeSkater?.name || "active skater"}.
+                      Plan practices here, then add reminders to your device calendar so alerts fire outside the app.
                     </div>
                   </div>
                   <div className="flex gap-2">
@@ -4615,16 +4615,65 @@ export default function SkateTrainingPlanApp() {
                       onClick={() => addPracticeToCalendar(draft.date)}
                       className={isLightMode ? "rounded-2xl bg-slate-100 ring-1 ring-slate-300 text-slate-900 px-4 py-2 text-sm font-semibold hover:bg-slate-200" : "rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10"}
                     >
-                      <Download className="h-4 w-4 inline-block mr-2" />
-                      Export iCal
+                      <Calendar className="h-4 w-4 inline-block mr-2" />
+                      Add Device Reminder
                     </button>
+                  </div>
+                </div>
+
+                <div className={isLightMode ? "mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-300 p-4" : "mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4"}>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Practice Date</div>
+                      <input
+                        value={draft.date}
+                        onChange={(e) => setDraft({ date: e.target.value })}
+                        type="date"
+                        className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
+                      />
+                    </div>
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Start Time</div>
+                      <input
+                        value={reminders.time}
+                        onChange={(e) => setSlice({ reminders: { ...reminders, time: e.target.value } })}
+                        type="time"
+                        className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
+                      />
+                    </div>
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Duration (min)</div>
+                      <input
+                        value={practiceSettings.durationMin}
+                        onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, durationMin: clampNum(e.target.value) || 0 } })}
+                        inputMode="numeric"
+                        className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
+                      />
+                    </div>
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Reminder (min before)</div>
+                      <input
+                        value={practiceSettings.remindMin}
+                        onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, remindMin: clampNum(e.target.value) || 0 } })}
+                        inputMode="numeric"
+                        className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
+                      />
+                    </div>
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Event Title</div>
+                      <input
+                        value={practiceSettings.title}
+                        onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, title: e.target.value } })}
+                        className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
+                      />
+                    </div>
                   </div>
                 </div>
 
                 <div className={isLightMode ? "mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-300 p-4" : "mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4"}>
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Reminder Widget</div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Next Practice</div>
                       <div className="text-sm font-bold">
                         {nextPracticeEvent
                           ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${nextPracticeEvent.time}`
@@ -4636,7 +4685,7 @@ export default function SkateTrainingPlanApp() {
                     </Pill>
                   </div>
                   <div className={isLightMode ? "mt-2 text-xs text-slate-600" : "mt-2 text-xs text-white/60"}>
-                    This in-app widget reminder works with browser notifications while the app is open.
+                    For outside-app alerts, tap <span className="font-bold">Add Device Reminder</span> or use an upcoming item’s reminder button.
                   </div>
                 </div>
 
@@ -4706,8 +4755,26 @@ export default function SkateTrainingPlanApp() {
                   <div className="mt-2 space-y-2">
                     {activePracticeEvents.slice(0, 8).map((ev) => (
                       <div key={ev.id} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 px-3 py-2" : "rounded-xl bg-black/30 ring-1 ring-white/10 px-3 py-2"}>
-                        <div className="text-sm font-bold">
-                          {ev.dateISO} • {ev.time} • {ev.title || "Practice"}
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="text-sm font-bold">
+                            {ev.dateISO} • {ev.time} • {ev.title || "Practice"}
+                          </div>
+                          <div className="flex gap-2">
+                            <button
+                              type="button"
+                              onClick={() => exportPracticeEvent(ev)}
+                              className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
+                            >
+                              Add Reminder
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => removePracticeEvent(ev.id)}
+                              className={isLightMode ? "rounded-lg bg-rose-50 ring-1 ring-rose-300 text-rose-700 px-3 py-1.5 text-xs font-semibold hover:bg-rose-100" : "rounded-lg bg-rose-500/15 ring-1 ring-rose-500/20 text-rose-200 px-3 py-1.5 text-xs font-semibold hover:bg-rose-500/20"}
+                            >
+                              Remove
+                            </button>
+                          </div>
                         </div>
                         <div className={isLightMode ? "text-xs text-slate-600" : "text-xs text-white/60"}>
                           Reminder {Math.max(0, Number(ev.remindMin) || 0)} min before
@@ -4982,104 +5049,33 @@ export default function SkateTrainingPlanApp() {
                 </div>
               </div>
 
-              <div className="mt-4 rounded-3xl bg-white/5 ring-1 ring-white/10 p-5">
-                <div className="flex items-center justify-between gap-3">
+              <div className={`mt-4 rounded-3xl p-5 ${isLightMode ? "bg-white ring-1 ring-slate-300" : "bg-white/5 ring-1 ring-white/10"}`}>
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <div className="text-sm font-semibold">Practice Calendar</div>
-                    <div className="text-xs text-white/60">Best reminders = Calendar events. Browser notifications aren’t reliable when closed.</div>
+                    <div className="text-sm font-semibold">Practice Planner</div>
+                    <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
+                      Practice scheduling was moved to the <span className="font-bold">Calendar</span> tab. Add practices there and create outside-app reminders.
+                    </div>
                   </div>
                   <div className="flex gap-2">
-                    {!reminders.enabled ? (
-                      <button type="button" onClick={enableNotifications} className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90">
-                        <Bell className="h-4 w-4 inline-block mr-2" /> Enable Alerts
-                      </button>
-                    ) : (
-                      <Pill tone="good">
-                        <Bell className="h-3.5 w-3.5" /> Enabled
-                      </Pill>
-                    )}
-                    <div className="flex gap-2">
-                      <button type="button" onClick={addPracticeToCalendar} className="rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10" title="Downloads an iCal file you can add to Calendar">
-                        <Calendar className="h-4 w-4 inline-block mr-2" /> Add Practice
-                      </button>
-
-                      <label className="cursor-pointer rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90 inline-flex items-center gap-2" title="Import an .ics from Google Calendar or iOS/Apple Calendar">
-                        <Upload className="h-4 w-4" /> Import .ics
-                        <input type="file" accept="text/calendar,.ics" className="hidden" onChange={(e) => importICSFile(e.target.files?.[0])} />
-                      </label>
-                    </div>
+                    <button
+                      type="button"
+                      onClick={() => switchView("calendar")}
+                      className={isLightMode ? "rounded-2xl bg-slate-900 text-white px-4 py-2 text-sm font-bold hover:bg-slate-800" : "rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"}
+                    >
+                      <Calendar className="h-4 w-4 inline-block mr-2" />
+                      Open Calendar
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => addPracticeToCalendar(draft.date)}
+                      className={isLightMode ? "rounded-2xl bg-slate-100 ring-1 ring-slate-300 text-slate-900 px-4 py-2 text-sm font-semibold hover:bg-slate-200" : "rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10"}
+                    >
+                      <Bell className="h-4 w-4 inline-block mr-2" />
+                      Add Reminder
+                    </button>
                   </div>
                 </div>
-
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
-                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                    <div className="text-xs text-white/60">Practice Date</div>
-                    <input value={draft.date} onChange={(e) => setDraft({ date: e.target.value })} type="date" className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2" />
-                  </div>
-                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                    <div className="text-xs text-white/60">Start Time</div>
-                    <input value={reminders.time} onChange={(e) => setSlice({ reminders: { ...reminders, time: e.target.value } })} type="time" className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2" />
-                  </div>
-                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                    <div className="text-xs text-white/60">Duration (min)</div>
-                    <input
-                      value={practiceSettings.durationMin}
-                      onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, durationMin: clampNum(e.target.value) || 0 } })}
-                      inputMode="numeric"
-                      className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
-                    />
-                  </div>
-                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                    <div className="text-xs text-white/60">Reminder (min before)</div>
-                    <input
-                      value={practiceSettings.remindMin}
-                      onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, remindMin: clampNum(e.target.value) || 0 } })}
-                      inputMode="numeric"
-                      className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
-                    />
-                  </div>
-                </div>
-
-                <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                    <div className="text-xs text-white/60">Event Title</div>
-                    <input value={practiceSettings.title} onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, title: e.target.value } })} className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2" />
-                  </div>
-                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                    <div className="text-xs text-white/60">Tip</div>
-                    <div className="mt-1 text-sm">Tap <span className="font-bold">Add Practice</span> → open the .ics → Add to Calendar.</div>
-                  </div>
-                </div>
-
-                {practiceEvents.length ? (
-                  <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-semibold">Scheduled Practices (this device)</div>
-                      <Pill tone="neutral">{practiceEvents.length}</Pill>
-                    </div>
-                    <div className="mt-3 space-y-2">
-                      {practiceEvents.slice(0, 8).map((ev) => (
-                        <div key={ev.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div className="text-sm font-bold">
-                              {ev.dateISO} • {ev.time}
-                              <span className="text-white/60 font-normal"> • {ev.skaterName}</span>
-                            </div>
-                            <div className="flex gap-2">
-                              <button type="button" onClick={() => exportPracticeEvent(ev)} className="rounded-xl bg-white text-black px-3 py-2 text-xs font-extrabold hover:bg-white/90">
-                                Download
-                              </button>
-                              <button type="button" onClick={() => removePracticeEvent(ev.id)} className="rounded-xl bg-rose-500/15 ring-1 ring-rose-500/20 px-3 py-2 text-xs font-semibold hover:bg-rose-500/20 text-rose-200">
-                                Remove
-                              </button>
-                            </div>
-                          </div>
-                          <div className="mt-1 text-xs text-white/60">{ev.title} • {ev.durationMin} min • Reminder {ev.remindMin} min before</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
               </div>
             </motion.div>
           ) : null}
