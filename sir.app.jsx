@@ -1531,8 +1531,17 @@ export default function SkateTrainingPlanApp() {
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
   const [biometricBusy, setBiometricBusy] = useState(false);
+  const loginPinInputRef = useRef(null);
   const biometricUnavailableReason = getBiometricUnavailableReason();
   const biometricSupported = !biometricUnavailableReason;
+
+  useEffect(() => {
+    if (!loginOpen) return undefined;
+    const timer = window.setTimeout(() => {
+      loginPinInputRef.current?.focus?.();
+    }, 120);
+    return () => window.clearTimeout(timer);
+  }, [loginOpen, loginPickId]);
 
   const ensurePinRequired = (memberId) => {
     const m = members.find((x) => x.id === memberId);
@@ -3842,6 +3851,7 @@ export default function SkateTrainingPlanApp() {
 
           <div className="mt-2 flex gap-2">
             <input
+              ref={loginPinInputRef}
               value={loginPin}
               onChange={(e) => {
                 setLoginPin(sanitizePin(e.target.value));
@@ -3860,12 +3870,15 @@ export default function SkateTrainingPlanApp() {
                 }
               }}
               placeholder={requirePin ? "Set 4-digit PIN" : "4-digit PIN"}
-              type="tel"
+              type="password"
               inputMode="numeric"
-              enterKeyHint="done"
+              pattern="[0-9]*"
               maxLength={4}
-              autoComplete="one-time-code"
-              className="flex-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+              autoComplete={requirePin ? "new-password" : "current-password"}
+              autoCorrect="off"
+              autoCapitalize="off"
+              spellCheck={false}
+              className="flex-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-base"
             />
             <button
               type="button"
