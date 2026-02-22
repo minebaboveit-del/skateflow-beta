@@ -1497,7 +1497,14 @@ export default function SkateTrainingPlanApp() {
   const canComment = activeMember?.role === "owner" || activeMember?.role === "coach";
   const canManageTeam = activeMember?.role === "owner";
   const [calendarMonthKey, setCalendarMonthKey] = useState(() => monthKeyFromDate(new Date()));
+  const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now());
   const reminderFiredRef = useRef(new Set());
+  const reminderExportBusyRef = useRef(false);
+
+  useEffect(() => {
+    const timerId = window.setInterval(() => setCalendarNowMs(Date.now()), 30000);
+    return () => window.clearInterval(timerId);
+  }, []);
 
   const activePracticeEvents = useMemo(() => {
     const list = toArray(practiceEvents)
@@ -1530,12 +1537,12 @@ export default function SkateTrainingPlanApp() {
   }, [activePracticeEvents]);
 
   const nextPracticeEvent = useMemo(() => {
-    const now = Date.now();
+    const now = calendarNowMs;
     return activePracticeEvents.find((ev) => parseLocalDateTime(ev.dateISO, ev.time).getTime() >= now) || null;
-  }, [activePracticeEvents]);
+  }, [activePracticeEvents, calendarNowMs]);
   const nextPracticeCountdown = useMemo(() => {
     if (!nextPracticeEvent) return "No upcoming practice";
-    const now = Date.now();
+    const now = calendarNowMs;
     const ms = parseLocalDateTime(nextPracticeEvent.dateISO, nextPracticeEvent.time).getTime() - now;
     if (ms <= 0) return "Starting now";
     const totalMin = Math.round(ms / 60000);
@@ -1545,7 +1552,7 @@ export default function SkateTrainingPlanApp() {
     if (days > 0) return `In ${days}d ${hours}h`;
     if (hours > 0) return `In ${hours}h ${mins}m`;
     return `In ${mins}m`;
-  }, [nextPracticeEvent]);
+  }, [nextPracticeEvent, calendarNowMs]);
 
   const tasks = useMemo(() => plans[draft.dayType] || [], [plans, draft.dayType]);
   const totalTarget = useMemo(() => tasks.reduce((sum, t) => sum + (Number(t.target) || 0), 0), [tasks]);
@@ -3607,12 +3614,20 @@ export default function SkateTrainingPlanApp() {
     };
     setSlice({ practiceEvents: [ev, ...practiceEvents].slice(0, 50) });
     if (opts.downloadICS !== false) {
+      if (reminderExportBusyRef.current) {
+        toast("Reminder in progress", "Please wait a second and try again.", "warn");
+        return ev;
+      }
+      reminderExportBusyRef.current = true;
       const downloaded = exportICSPractice(ev.dateISO, ev.title, ev.notes, {
         time: ev.time,
         durationMin: ev.durationMin,
         remindMin: ev.remindMin,
         location: ev.park,
       });
+      window.setTimeout(() => {
+        reminderExportBusyRef.current = false;
+      }, 800);
       if (downloaded) {
         toast("Calendar event ready", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
       } else {
@@ -3625,16 +3640,45 @@ export default function SkateTrainingPlanApp() {
   };
 
   const addPracticeToCalendar = (dateOverride = draft.date) => {
-    createPracticeEvent(dateOverride, { downloadICS: true });
+    if (!activeSkater) return;
+    const safeDate = isValidISODate(String(dateOverride || "")) ? String(dateOverride) : todayISO();
+    const safeTime = isValidTimeHHMM(String(reminders.time || "")) ? String(reminders.time) : "17:00";
+    const selectedParkName = String(practiceSettings.park || draft.park || selectedParkProfile?.name || "").trim();
+    const selectedTitle = String(practiceSettings.title || "SkateFlow Practice").trim();
+    const existing = toArray(practiceEvents).find((ev) => {
+      const evSkaterId = String(ev?.skaterId || "");
+      const skaterMatch = !evSkaterId || evSkaterId === activeSkater.id;
+      return (
+        skaterMatch &&
+        String(ev?.dateISO || "") === safeDate &&
+        String(ev?.time || "") === safeTime &&
+        String(ev?.title || "").trim() === selectedTitle &&
+        String(ev?.park || "").trim() === selectedParkName
+      );
+    });
+    if (existing) {
+      exportPracticeEvent(existing);
+      toast("Reminder refreshed", "Used your existing matching practice event.", "info");
+      return;
+    }
+    createPracticeEvent(safeDate, { downloadICS: true });
   };
 
   const exportPracticeEvent = (ev) => {
+    if (reminderExportBusyRef.current) {
+      toast("Reminder in progress", "Please wait a second and try again.", "warn");
+      return;
+    }
+    reminderExportBusyRef.current = true;
     const downloaded = exportICSPractice(ev.dateISO, ev.title, ev.notes, {
       time: ev.time,
       durationMin: ev.durationMin,
       remindMin: ev.remindMin,
       location: ev.park,
     });
+    window.setTimeout(() => {
+      reminderExportBusyRef.current = false;
+    }, 800);
     if (downloaded) {
       toast("iCal ready", `${ev.dateISO} ${ev.time}`, "success");
     } else {
