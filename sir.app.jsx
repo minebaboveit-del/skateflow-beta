@@ -1277,14 +1277,24 @@ function Pill({ children, tone = "neutral", lightMode = false }) {
   );
 }
 
-function TabButton({ active, icon: Icon, label, onClick, lightMode = false }) {
-  const className = lightMode
-    ? `flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ring-1 transition shadow-sm ${
-        active ? "bg-slate-200 text-slate-900 ring-slate-400" : "bg-white text-slate-700 ring-slate-300 hover:bg-slate-100"
-      }`
-    : `flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ring-1 transition shadow-sm ${
-        active ? "bg-white text-black ring-white" : "bg-white/5 text-white ring-white/10 hover:bg-white/10"
-      }`;
+function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabKey = "log" }) {
+  const toneByTab = {
+    log: { light: "bg-cyan-100 text-cyan-900 ring-cyan-300", dark: "bg-cyan-500/20 text-cyan-100 ring-cyan-400/40" },
+    cards: { light: "bg-fuchsia-100 text-fuchsia-900 ring-fuchsia-300", dark: "bg-fuchsia-500/20 text-fuchsia-100 ring-fuchsia-400/40" },
+    calendar: { light: "bg-emerald-100 text-emerald-900 ring-emerald-300", dark: "bg-emerald-500/20 text-emerald-100 ring-emerald-400/40" },
+    dash: { light: "bg-amber-100 text-amber-900 ring-amber-300", dark: "bg-amber-500/20 text-amber-100 ring-amber-400/40" },
+    plans: { light: "bg-indigo-100 text-indigo-900 ring-indigo-300", dark: "bg-indigo-500/20 text-indigo-100 ring-indigo-400/40" },
+    coach: { light: "bg-rose-100 text-rose-900 ring-rose-300", dark: "bg-rose-500/20 text-rose-100 ring-rose-400/40" },
+    skateday: { light: "bg-teal-100 text-teal-900 ring-teal-300", dark: "bg-teal-500/20 text-teal-100 ring-teal-400/40" },
+    contest: { light: "bg-orange-100 text-orange-900 ring-orange-300", dark: "bg-orange-500/20 text-orange-100 ring-orange-400/40" },
+    team: { light: "bg-blue-100 text-blue-900 ring-blue-300", dark: "bg-blue-500/20 text-blue-100 ring-blue-400/40" },
+    chat: { light: "bg-violet-100 text-violet-900 ring-violet-300", dark: "bg-violet-500/20 text-violet-100 ring-violet-400/40" },
+    settings: { light: "bg-slate-200 text-slate-900 ring-slate-400", dark: "bg-slate-300/20 text-slate-100 ring-slate-200/35" },
+  };
+  const tone = toneByTab[tabKey] || toneByTab.log;
+  const activeTone = lightMode ? tone.light : tone.dark;
+  const inactiveTone = lightMode ? "bg-white text-slate-700 ring-slate-300 hover:bg-slate-100" : "bg-white/5 text-white ring-white/10 hover:bg-white/10";
+  const className = `flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ring-1 transition shadow-sm ${active ? activeTone : inactiveTone}`;
   return (
     <button type="button" onClick={onClick} className={className}>
       <Icon className="h-4 w-4" />
@@ -4439,17 +4449,17 @@ export default function SkateTrainingPlanApp() {
           </div>
 
           <div className={(mobileTabsOpen ? "mt-3 grid grid-cols-4 gap-2" : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-11 sm:gap-2"}>
-            <TabButton active={ui.view === "log"} icon={ClipboardList} label="Log" lightMode={isLightMode} onClick={() => switchView("log")} />
-            <TabButton active={ui.view === "cards"} icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => switchView("cards")} />
-            <TabButton active={ui.view === "calendar"} icon={Calendar} label="Calendar" lightMode={isLightMode} onClick={() => switchView("calendar")} />
-            <TabButton active={ui.view === "dash"} icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
-            <TabButton active={ui.view === "plans"} icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
-            <TabButton active={ui.view === "coach"} icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} />
-            <TabButton active={ui.view === "skateday"} icon={MapPin} label="Skate Day" lightMode={isLightMode} onClick={() => switchView("skateday")} />
-            <TabButton active={ui.view === "contest"} icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
-            <TabButton active={ui.view === "team"} icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} />
-            <TabButton active={ui.view === "chat"} icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => switchView("chat")} />
-            <TabButton active={ui.view === "settings"} icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => switchView("settings")} />
+            <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" lightMode={isLightMode} onClick={() => switchView("log")} />
+            <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => switchView("cards")} />
+            <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" lightMode={isLightMode} onClick={() => switchView("calendar")} />
+            <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
+            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
+            <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} />
+            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Skate Day" lightMode={isLightMode} onClick={() => switchView("skateday")} />
+            <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
+            <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} />
+            <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => switchView("chat")} />
+            <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => switchView("settings")} />
           </div>
         </div>
 
