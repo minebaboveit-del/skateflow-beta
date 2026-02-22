@@ -294,11 +294,18 @@ function base64UrlToArrayBuffer(input) {
 }
 
 function sanitizePin(value) {
-  return String(value || "").replace(/\D/g, "").slice(0, 4);
+  const normalized = String(value || "")
+    .replace(/[０-９]/g, (d) => String(d.charCodeAt(0) - 0xff10))
+    .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
+    .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
+  return normalized.replace(/\D/g, "").slice(0, 4);
 }
 
-function supportsBiometricLogin() {
-  return typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials;
+function getBiometricUnavailableReason() {
+  if (typeof window === "undefined") return "Biometric login is unavailable in this environment.";
+  if (!window.PublicKeyCredential || !navigator.credentials) return "Biometric login is not supported on this device/browser.";
+  if (!window.isSecureContext) return "Face/Fingerprint needs HTTPS (or localhost). Open the app on a secure URL.";
+  return "";
 }
 
 function guardUploadFiles(fileList, opts = {}) {
@@ -1524,6 +1531,8 @@ export default function SkateTrainingPlanApp() {
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
   const [biometricBusy, setBiometricBusy] = useState(false);
+  const biometricUnavailableReason = getBiometricUnavailableReason();
+  const biometricSupported = !biometricUnavailableReason;
 
   const ensurePinRequired = (memberId) => {
     const m = members.find((x) => x.id === memberId);
@@ -1558,8 +1567,9 @@ export default function SkateTrainingPlanApp() {
 
   const registerBiometricForMember = async (member) => {
     if (!member?.id) return false;
-    if (!supportsBiometricLogin()) {
-      throw new Error("Biometric login is not supported on this device/browser.");
+    const biometricReason = getBiometricUnavailableReason();
+    if (biometricReason) {
+      throw new Error(biometricReason);
     }
     const challenge = createBiometricChallenge(32);
     const userIdBytes = createBiometricChallenge(16);
@@ -1597,8 +1607,9 @@ export default function SkateTrainingPlanApp() {
   const biometricLogin = async (memberId) => {
     const member = members.find((x) => x.id === memberId);
     if (!member) return false;
-    if (!supportsBiometricLogin()) {
-      setLoginError("Biometric login is not supported on this device/browser.");
+    const biometricReason = getBiometricUnavailableReason();
+    if (biometricReason) {
+      setLoginError(biometricReason);
       return false;
     }
     if (!member.biometricCredentialId) {
@@ -3770,6 +3781,41 @@ export default function SkateTrainingPlanApp() {
     const picked = members.find((m) => m.id === loginPickId) || members[0];
     const requirePin = sanitizePin(picked?.pin || "").length !== 4;
 
+    const submitLogin = () => {
+      const nextId = loginPickId;
+      const m = members.find((x) => x.id === nextId);
+      if (!m) return;
+
+      if (requirePin) {
+        const pin = sanitizePin(loginPin || "");
+        if (pin.length !== 4) {
+          setLoginError("PIN must be exactly 4 digits.");
+          return;
+        }
+        setSlice({
+          members: members.map((x) => (x.id === nextId ? { ...x, pin } : x)),
+          auth: { loggedInMemberId: nextId },
+          ui: { ...ui, activeMemberId: nextId },
+        });
+        setLoginOpen(false);
+        setLoginError("");
+        setLoginPin("");
+        toast("PIN set", `Welcome, ${m.name}.`, "success");
+        return;
+      }
+
+      if (!attemptLogin(nextId, loginPin)) {
+        setLoginError("Wrong PIN. Try again.");
+        return;
+      }
+
+      setSlice({ auth: { loggedInMemberId: nextId }, ui: { ...ui, activeMemberId: nextId } });
+      setLoginOpen(false);
+      setLoginError("");
+      setLoginPin("");
+      toast("Logged in", `Welcome back, ${m.name}.`, "success");
+    };
+
     return (
       <div>
         <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
@@ -3797,57 +3843,41 @@ export default function SkateTrainingPlanApp() {
           <div className="mt-2 flex gap-2">
             <input
               value={loginPin}
-              onChange={(e) => setLoginPin(sanitizePin(e.target.value))}
+              onChange={(e) => {
+                setLoginPin(sanitizePin(e.target.value));
+                if (loginError) setLoginError("");
+              }}
+              onPaste={(e) => {
+                e.preventDefault();
+                const pasted = e.clipboardData?.getData("text") || "";
+                setLoginPin(sanitizePin(pasted));
+                if (loginError) setLoginError("");
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  submitLogin();
+                }
+              }}
               placeholder={requirePin ? "Set 4-digit PIN" : "4-digit PIN"}
-              type="password"
+              type="tel"
               inputMode="numeric"
-              pattern="[0-9]*"
+              enterKeyHint="done"
               maxLength={4}
-              autoComplete={requirePin ? "new-password" : "current-password"}
+              autoComplete="one-time-code"
               className="flex-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
             />
             <button
               type="button"
               className="rounded-xl bg-white text-black px-4 py-2 text-sm font-extrabold hover:bg-white/90 inline-flex items-center gap-2"
-              onClick={() => {
-                const nextId = loginPickId;
-                const m = members.find((x) => x.id === nextId);
-                if (!m) return;
-
-                if (requirePin) {
-                  const pin = sanitizePin(loginPin || "");
-                  if (pin.length !== 4) {
-                    setLoginError("PIN must be exactly 4 digits.");
-                    return;
-                  }
-                  setSlice({
-                    members: members.map((x) => (x.id === nextId ? { ...x, pin } : x)),
-                    auth: { loggedInMemberId: nextId },
-                    ui: { ...ui, activeMemberId: nextId },
-                  });
-                  setLoginOpen(false);
-                  setLoginError("");
-                  toast("PIN set", `Welcome, ${m.name}.`, "success");
-                  return;
-                }
-
-                if (!attemptLogin(nextId, loginPin)) {
-                  setLoginError("Wrong PIN. Try again.");
-                  return;
-                }
-
-                setSlice({ auth: { loggedInMemberId: nextId }, ui: { ...ui, activeMemberId: nextId } });
-                setLoginOpen(false);
-                setLoginError("");
-                toast("Logged in", `Welcome back, ${m.name}.`, "success");
-              }}
+              onClick={submitLogin}
             >
               <LogIn className="h-4 w-4" />
               Enter
             </button>
           </div>
 
-          {!requirePin && supportsBiometricLogin() ? (
+          {!requirePin && biometricSupported ? (
             <div className="mt-2">
               <button
                 type="button"
@@ -3859,10 +3889,13 @@ export default function SkateTrainingPlanApp() {
               </button>
             </div>
           ) : null}
+          {!requirePin && !biometricSupported ? <div className="mt-2 text-xs text-amber-200">{biometricUnavailableReason}</div> : null}
 
           {loginError ? <div className="mt-2 text-sm text-rose-200">{loginError}</div> : null}
         </div>
-        <div className="mt-3 text-xs text-white/50">Local-only login (device-based).</div>
+        <div className="mt-3 text-xs text-white/50">
+          Local-only login (device-based). Face/Fingerprint requires a secure app URL (HTTPS or localhost).
+        </div>
       </div>
     );
   };
@@ -5742,6 +5775,10 @@ export default function SkateTrainingPlanApp() {
                               <button
                                 type="button"
                                 onClick={async () => {
+                                  if (!biometricSupported) {
+                                    toast("Biometric unavailable", biometricUnavailableReason, "warn");
+                                    return;
+                                  }
                                   try {
                                     setBiometricBusy(true);
                                     await registerBiometricForMember(m);
@@ -5752,7 +5789,9 @@ export default function SkateTrainingPlanApp() {
                                     setBiometricBusy(false);
                                   }
                                 }}
-                                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                                disabled={!biometricSupported || biometricBusy}
+                                title={!biometricSupported ? biometricUnavailableReason : "Register Face/Fingerprint on this device"}
+                                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-60"
                               >
                                 Set Face/Fingerprint
                               </button>
