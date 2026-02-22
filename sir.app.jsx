@@ -102,7 +102,7 @@ const INITIAL_STORE = {
   practiceEvents: [],
   xpBySkaterId: {},
   xpMilestonesBySkaterId: {},
-  practiceSettings: { durationMin: 60, remindMin: 60, title: "SkateFlow Practice" },
+  practiceSettings: { durationMin: 60, remindMin: 60, title: "SkateFlow Practice", park: "" },
   reminders: { enabled: false, time: "17:00" },
   draft: { date: todayISO(), park: "", dayType: Object.keys(DEFAULT_PLANS)[0], completedByTaskId: {}, missedByTaskId: {} },
   auth: { loggedInMemberId: null },
@@ -500,7 +500,20 @@ function normalizeStoreShape(raw) {
     plans,
     sessions,
     chatBySkaterId: toObj(src.chatBySkaterId, {}),
-    practiceEvents: toArray(src.practiceEvents),
+    practiceEvents: toArray(src.practiceEvents).map((ev) => ({
+      id: String(ev?.id || `pe-${uid()}`),
+      dateISO: String(ev?.dateISO || todayISO()),
+      time: String(ev?.time || "17:00"),
+      durationMin: Math.max(5, Number(ev?.durationMin) || 60),
+      remindMin: Math.max(0, Number(ev?.remindMin) || 60),
+      title: String(ev?.title || INITIAL_STORE.practiceSettings.title),
+      park: String(ev?.park || ""),
+      notes: String(ev?.notes || ""),
+      skaterId: String(ev?.skaterId || ""),
+      skaterName: String(ev?.skaterName || ""),
+      createdAt: String(ev?.createdAt || new Date().toISOString()),
+      source: String(ev?.source || ""),
+    })),
     xpBySkaterId: toObj(src.xpBySkaterId, {}),
     xpMilestonesBySkaterId: toObj(src.xpMilestonesBySkaterId, {}),
     contestBySkaterId: toObj(src.contestBySkaterId, {}),
@@ -514,6 +527,7 @@ function normalizeStoreShape(raw) {
       durationMin: Math.max(5, Number(src?.practiceSettings?.durationMin) || INITIAL_STORE.practiceSettings.durationMin),
       remindMin: Math.max(0, Number(src?.practiceSettings?.remindMin) || INITIAL_STORE.practiceSettings.remindMin),
       title: String(src?.practiceSettings?.title || INITIAL_STORE.practiceSettings.title),
+      park: String(src?.practiceSettings?.park || INITIAL_STORE.practiceSettings.park),
     },
     reminders: {
       ...INITIAL_STORE.reminders,
@@ -1098,7 +1112,7 @@ function exportCSV(sessions) {
 }
 
 function exportICSPractice(dateISO, title, notes, opts = {}) {
-  const { time = "17:00", durationMin = 60, remindMin = 60 } = opts;
+  const { time = "17:00", durationMin = 60, remindMin = 60, location = "" } = opts;
 
   const pad = (n) => String(n).padStart(2, "0");
   const formatLocal = (d) =>
@@ -1113,6 +1127,7 @@ function exportICSPractice(dateISO, title, notes, opts = {}) {
 
   const safeNotes = String(notes || "").replace(/\r?\n/g, " ");
   const safeTitle = String(title || "SkateFlow Practice").replace(/\r?\n/g, " ");
+  const safeLocation = String(location || "").replace(/\r?\n/g, " ");
   const alarm = Math.max(0, Number(remindMin) || 0);
   const ics = [
     "BEGIN:VCALENDAR",
@@ -1126,6 +1141,7 @@ function exportICSPractice(dateISO, title, notes, opts = {}) {
     `DTEND:${formatLocal(endLocal)}`,
     `SUMMARY:${safeTitle}`,
     `DESCRIPTION:${safeNotes}`,
+    ...(safeLocation ? [`LOCATION:${safeLocation}`] : []),
     ...(alarm
       ? [
           "BEGIN:VALARM",
@@ -1186,6 +1202,7 @@ function importPracticesFromICS(icsText, fallback = {}) {
     const dtEndRaw = get("DTEND");
     const summary = get("SUMMARY") || fallback.title || "SkateFlow Practice";
     const desc = get("DESCRIPTION") || "";
+    const location = get("LOCATION") || fallback.park || "";
 
     const start = parseICSDateTime(dtStartRaw);
     const end = parseICSDateTime(dtEndRaw);
@@ -1202,6 +1219,7 @@ function importPracticesFromICS(icsText, fallback = {}) {
       durationMin,
       remindMin: Number(fallback.remindMin) || 60,
       title: summary,
+      park: location,
       notes: desc.replace(/\n/g, "\n"),
       skaterId: fallback.skaterId || "",
       skaterName: fallback.skaterName || "",
@@ -1379,7 +1397,7 @@ export default function SkateTrainingPlanApp() {
   const sessions = store.sessions || [];
   const chatBySkaterId = store.chatBySkaterId || {};
   const practiceEvents = store.practiceEvents || [];
-  const practiceSettings = store.practiceSettings || { durationMin: 60, remindMin: 60, title: "SkateFlow Practice" };
+  const practiceSettings = store.practiceSettings || { durationMin: 60, remindMin: 60, title: "SkateFlow Practice", park: "" };
   const reminders = store.reminders || { enabled: false, time: "17:00" };
   const draft = store.draft || { date: todayISO(), park: "", dayType: Object.keys(plans)[0], completedByTaskId: {}, missedByTaskId: {} };
   const auth = store.auth || { loggedInMemberId: null };
@@ -3543,7 +3561,7 @@ export default function SkateTrainingPlanApp() {
           reminderFiredRef.current.add(key);
           try {
             new Notification("SkateFlow Reminder", {
-              body: `${ev.title || "Practice"} • ${ev.dateISO} ${ev.time} (${ev.skaterName || activeSkater?.name || "Skater"})`,
+              body: `${ev.title || "Practice"} • ${ev.dateISO} ${ev.time}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || "Skater"})`,
             });
           } catch {
             // ignore notification failures
@@ -3573,6 +3591,7 @@ export default function SkateTrainingPlanApp() {
     if (!activeSkater) return;
     const safeDate = isValidISODate(String(dateOverride || "")) ? String(dateOverride) : todayISO();
     const safeTime = isValidTimeHHMM(String(reminders.time || "")) ? String(reminders.time) : "17:00";
+    const selectedParkName = String(practiceSettings.park || draft.park || selectedParkProfile?.name || "").trim();
     const ev = {
       id: `pe-${uid()}`,
       dateISO: safeDate,
@@ -3580,7 +3599,8 @@ export default function SkateTrainingPlanApp() {
       durationMin: Number(practiceSettings.durationMin) || 60,
       remindMin: Number(practiceSettings.remindMin) || 60,
       title: practiceSettings.title || "SkateFlow Practice",
-      notes: `Skater: ${activeSkater.name}\nDay: ${draft.dayType}\nPark: ${draft.park || ""}`,
+      park: selectedParkName,
+      notes: `Skater: ${activeSkater.name}\nDay: ${draft.dayType}\nPark: ${selectedParkName}`,
       skaterId: activeSkater.id,
       skaterName: activeSkater.name,
       createdAt: new Date().toISOString(),
@@ -3591,6 +3611,7 @@ export default function SkateTrainingPlanApp() {
         time: ev.time,
         durationMin: ev.durationMin,
         remindMin: ev.remindMin,
+        location: ev.park,
       });
       if (downloaded) {
         toast("Calendar event ready", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
@@ -3612,6 +3633,7 @@ export default function SkateTrainingPlanApp() {
       time: ev.time,
       durationMin: ev.durationMin,
       remindMin: ev.remindMin,
+      location: ev.park,
     });
     if (downloaded) {
       toast("iCal ready", `${ev.dateISO} ${ev.time}`, "success");
@@ -3635,6 +3657,7 @@ export default function SkateTrainingPlanApp() {
       const text = await file.text();
       const imported = importPracticesFromICS(text, {
         title: practiceSettings.title,
+        park: practiceSettings.park,
         durationMin: practiceSettings.durationMin,
         remindMin: practiceSettings.remindMin,
         skaterId: activeSkater?.id || "",
@@ -4756,7 +4779,7 @@ export default function SkateTrainingPlanApp() {
                 </div>
 
                 <div className={isLightMode ? "mt-4 rounded-2xl bg-slate-50 ring-1 ring-slate-300 p-4" : "mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4"}>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-3">
                     <div>
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Practice Date</div>
                       <input
@@ -4801,6 +4824,32 @@ export default function SkateTrainingPlanApp() {
                         className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
                       />
                     </div>
+                    <div>
+                      <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Skate Park</div>
+                      <input
+                        value={practiceSettings.park || ""}
+                        onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, park: e.target.value } })}
+                        list="calendar-park-list"
+                        placeholder="Harbor City Skate Park"
+                        className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
+                      />
+                      <datalist id="calendar-park-list">
+                        {parkProfiles.map((p) => (
+                          <option key={p.id} value={p.name}>
+                            {p.location || ""}
+                          </option>
+                        ))}
+                      </datalist>
+                      {selectedParkProfile ? (
+                        <button
+                          type="button"
+                          onClick={() => setSlice({ practiceSettings: { ...practiceSettings, park: selectedParkProfile.name } })}
+                          className={isLightMode ? "mt-1 rounded-lg bg-slate-100 ring-1 ring-slate-300 px-2 py-1 text-[11px] font-semibold hover:bg-slate-200" : "mt-1 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-[11px] font-semibold hover:bg-white/10"}
+                        >
+                          Use Selected Park
+                        </button>
+                      ) : null}
+                    </div>
                   </div>
                 </div>
 
@@ -4810,7 +4859,7 @@ export default function SkateTrainingPlanApp() {
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Next Practice</div>
                       <div className="text-sm font-bold">
                         {nextPracticeEvent
-                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${nextPracticeEvent.time}`
+                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${nextPracticeEvent.time}${nextPracticeEvent.park ? ` • ${nextPracticeEvent.park}` : ""}`
                           : "No upcoming practice"}
                       </div>
                     </div>
@@ -4875,7 +4924,7 @@ export default function SkateTrainingPlanApp() {
                         <div className="mt-1 space-y-1">
                           {events.slice(0, 2).map((ev) => (
                             <div key={ev.id} className="truncate text-[10px]">
-                              {ev.time} {ev.title || "Practice"}
+                              {ev.time} {ev.title || "Practice"}{ev.park ? ` @ ${ev.park}` : ""}
                             </div>
                           ))}
                         </div>
@@ -4891,7 +4940,7 @@ export default function SkateTrainingPlanApp() {
                       <div key={ev.id} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 px-3 py-2" : "rounded-xl bg-black/30 ring-1 ring-white/10 px-3 py-2"}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="text-sm font-bold">
-                            {ev.dateISO} • {ev.time} • {ev.title || "Practice"}
+                            {ev.dateISO} • {ev.time} • {ev.title || "Practice"}{ev.park ? ` • ${ev.park}` : ""}
                           </div>
                           <div className="flex gap-2">
                             <button
