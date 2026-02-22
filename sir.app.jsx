@@ -629,6 +629,14 @@ function parseLocalDateTime(dateISO, timeHHMM = "00:00") {
   return new Date(`${safeDate}T${safeTime}:00`);
 }
 
+function formatStandardTime(timeHHMM = "00:00") {
+  const safeTime = isValidTimeHHMM(timeHHMM) ? String(timeHHMM) : "00:00";
+  const [hh, mm] = safeTime.split(":").map((v) => Number(v) || 0);
+  const dt = new Date();
+  dt.setHours(hh, mm, 0, 0);
+  return dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+
 function toISODateLocal(d) {
   const dt = d instanceof Date ? d : new Date(d);
   const y = dt.getFullYear();
@@ -3578,7 +3586,7 @@ export default function SkateTrainingPlanApp() {
           reminderFiredRef.current.add(key);
           try {
             new Notification("SkateFlow Reminder", {
-              body: `${ev.title || "Practice"} • ${ev.dateISO} ${ev.time}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || "Skater"})`,
+              body: `${ev.title || "Practice"} • ${ev.dateISO} ${formatStandardTime(ev.time)}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || "Skater"})`,
             });
           } catch {
             // ignore notification failures
@@ -3639,13 +3647,13 @@ export default function SkateTrainingPlanApp() {
         reminderExportBusyRef.current = false;
       }, 800);
       if (downloaded) {
-        toast("Calendar event ready", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
+        toast("Calendar event ready", `${ev.dateISO} ${formatStandardTime(ev.time)} • reminder ${ev.remindMin}m`, "success");
       } else {
         toast("Calendar export failed", "Could not create calendar file on this browser.", "warn");
       }
       return ev;
     }
-    toast("Practice scheduled", `${ev.dateISO} ${ev.time} • reminder ${ev.remindMin}m`, "success");
+    toast("Practice scheduled", `${ev.dateISO} ${formatStandardTime(ev.time)} • reminder ${ev.remindMin}m`, "success");
     return ev;
   };
 
@@ -3690,7 +3698,7 @@ export default function SkateTrainingPlanApp() {
       reminderExportBusyRef.current = false;
     }, 800);
     if (downloaded) {
-      toast("iCal ready", `${ev.dateISO} ${ev.time}`, "success");
+      toast("iCal ready", `${ev.dateISO} ${formatStandardTime(ev.time)}`, "success");
     } else {
       toast("iCal failed", "Could not create calendar file on this browser.", "warn");
     }
@@ -4851,6 +4859,7 @@ export default function SkateTrainingPlanApp() {
                         type="time"
                         className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
                       />
+                      <div className={isLightMode ? "mt-1 text-[11px] text-slate-500" : "mt-1 text-[11px] text-white/50"}>{formatStandardTime(reminders.time)}</div>
                     </div>
                     <div>
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Duration (min)</div>
@@ -4913,7 +4922,7 @@ export default function SkateTrainingPlanApp() {
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Next Practice</div>
                       <div className="text-sm font-bold">
                         {nextPracticeEvent
-                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${nextPracticeEvent.time}${nextPracticeEvent.park ? ` • ${nextPracticeEvent.park}` : ""}`
+                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${formatStandardTime(nextPracticeEvent.time)}${nextPracticeEvent.park ? ` • ${nextPracticeEvent.park}` : ""}`
                           : "No upcoming practice"}
                       </div>
                     </div>
@@ -4978,7 +4987,7 @@ export default function SkateTrainingPlanApp() {
                         <div className="mt-1 space-y-1">
                           {events.slice(0, 2).map((ev) => (
                             <div key={ev.id} className="truncate text-[10px]">
-                              {ev.time} {ev.title || "Practice"}{ev.park ? ` @ ${ev.park}` : ""}
+                              {formatStandardTime(ev.time)} {ev.title || "Practice"}{ev.park ? ` @ ${ev.park}` : ""}
                             </div>
                           ))}
                         </div>
@@ -4994,7 +5003,7 @@ export default function SkateTrainingPlanApp() {
                       <div key={ev.id} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 px-3 py-2" : "rounded-xl bg-black/30 ring-1 ring-white/10 px-3 py-2"}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="text-sm font-bold">
-                            {ev.dateISO} • {ev.time} • {ev.title || "Practice"}{ev.park ? ` • ${ev.park}` : ""}
+                            {ev.dateISO} • {formatStandardTime(ev.time)} • {ev.title || "Practice"}{ev.park ? ` • ${ev.park}` : ""}
                           </div>
                           <div className="flex gap-2">
                             <button
