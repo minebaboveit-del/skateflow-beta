@@ -3789,6 +3789,7 @@ export default function SkateTrainingPlanApp() {
   const loginBody = (() => {
     const picked = members.find((m) => m.id === loginPickId) || members[0];
     const requirePin = sanitizePin(picked?.pin || "").length !== 4;
+    const pinPadDigits = ["1", "2", "3", "4", "5", "6", "7", "8", "9", "0"];
 
     const submitLogin = () => {
       const nextId = loginPickId;
@@ -3823,6 +3824,21 @@ export default function SkateTrainingPlanApp() {
       setLoginError("");
       setLoginPin("");
       toast("Logged in", `Welcome back, ${m.name}.`, "success");
+    };
+
+    const appendPinDigit = (digit) => {
+      setLoginPin((prev) => sanitizePin(`${prev}${digit}`));
+      if (loginError) setLoginError("");
+    };
+
+    const removePinDigit = () => {
+      setLoginPin((prev) => String(prev || "").slice(0, -1));
+      if (loginError) setLoginError("");
+    };
+
+    const clearPinDigits = () => {
+      setLoginPin("");
+      if (loginError) setLoginError("");
     };
 
     return (
@@ -3887,6 +3903,33 @@ export default function SkateTrainingPlanApp() {
             >
               <LogIn className="h-4 w-4" />
               Enter
+            </button>
+          </div>
+          <div className="mt-2 text-[11px] text-white/50">If iPhone keyboard closes, use the PIN keypad below.</div>
+          <div className="mt-2 grid grid-cols-3 gap-2">
+            {pinPadDigits.map((digit) => (
+              <button
+                key={digit}
+                type="button"
+                onClick={() => appendPinDigit(digit)}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10"
+              >
+                {digit}
+              </button>
+            ))}
+            <button
+              type="button"
+              onClick={clearPinDigits}
+              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+            >
+              Clear
+            </button>
+            <button
+              type="button"
+              onClick={removePinDigit}
+              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+            >
+              Back
             </button>
           </div>
 
