@@ -66,7 +66,7 @@ const DEFAULT_PLANS = {
 };
 
 const DEFAULT_PARK_PROFILES = [
-  { id: "park-harbor", name: "Harbor Skatepark", location: "Anaheim, CA", lat: 33.8366, lon: -117.9143, notes: "Concrete • street + transition" },
+  { id: "park-harbor", name: "Harbor City Skate Park", location: "Harbor City, CA", lat: 33.7903, lon: -118.2987, notes: "Concrete • street + transition" },
   { id: "park-vans", name: "Vans Off The Wall Skatepark", location: "Huntington Beach, CA", lat: 33.6589, lon: -117.9988, notes: "Concrete • street + bowl" },
   { id: "park-channel", name: "Channel Street Skatepark", location: "San Pedro, CA", lat: 33.7174, lon: -118.2812, notes: "DIY concrete • transition + street" },
 ];
@@ -90,9 +90,9 @@ function createDefaultBetaCheck() {
 
 const INITIAL_STORE = {
   members: [
-    { id: "m-1", name: "Myisha", role: "owner", pin: "", photoUrl: "" },
-    { id: "m-2", name: "Coach", role: "coach", pin: "", photoUrl: "" },
-    { id: "m-3", name: "Dad", role: "dad", pin: "", photoUrl: "" },
+    { id: "m-1", name: "Myisha", role: "owner", pin: "", photoUrl: "", biometricCredentialId: "" },
+    { id: "m-2", name: "Coach", role: "coach", pin: "", photoUrl: "", biometricCredentialId: "" },
+    { id: "m-3", name: "Dad", role: "dad", pin: "", photoUrl: "", biometricCredentialId: "" },
   ],
   skaters: [{ id: "s-1", name: "Conner", photoUrl: "" }],
   plans: DEFAULT_PLANS,
@@ -158,6 +158,10 @@ function cloudSafeDocPath(path) {
   if (!cleaned.length) return DEFAULT_CLOUD_SYNC.documentPath;
   if (cleaned.length % 2 !== 0) cleaned.push("state");
   return cleaned.join("/");
+}
+
+function parkIdentityKey(name, location = "") {
+  return `${String(name || "").trim().toLowerCase()}|${String(location || "").trim().toLowerCase()}`;
 }
 
 function normalizeFirebaseProjectId(value) {
@@ -269,6 +273,34 @@ async function fileToDataUrl(file) {
   return blobToDataUrl(file);
 }
 
+function bytesToBase64Url(bytes) {
+  const bin = String.fromCharCode(...bytes);
+  return btoa(bin).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function arrayBufferToBase64Url(buf) {
+  return bytesToBase64Url(new Uint8Array(buf));
+}
+
+function base64UrlToArrayBuffer(input) {
+  const normalized = String(input || "")
+    .replace(/-/g, "+")
+    .replace(/_/g, "/")
+    .padEnd(Math.ceil(String(input || "").length / 4) * 4, "=");
+  const bin = atob(normalized);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+  return bytes.buffer;
+}
+
+function sanitizePin(value) {
+  return String(value || "").replace(/\D/g, "").slice(0, 4);
+}
+
+function supportsBiometricLogin() {
+  return typeof window !== "undefined" && !!window.PublicKeyCredential && !!navigator.credentials;
+}
+
 function guardUploadFiles(fileList, opts = {}) {
   const maxCount = Math.max(1, Number(opts.maxCount) || MAX_UPLOAD_COUNT);
   const maxBytes = Math.max(1, Number(opts.maxBytes) || MAX_MEDIA_FILE_BYTES);
@@ -302,8 +334,9 @@ function normalizeStoreShape(raw) {
       id: String(m?.id || `m-${uid()}`),
       name: String(m?.name || "Member"),
       role: String(m?.role || "dad"),
-      pin: String(m?.pin || ""),
+      pin: sanitizePin(m?.pin || ""),
       photoUrl: String(m?.photoUrl || ""),
+      biometricCredentialId: String(m?.biometricCredentialId || ""),
     }))
     .filter((m) => m.id);
   const skaters = toArray(src.skaters)
@@ -367,6 +400,19 @@ function normalizeStoreShape(raw) {
       lon: Number.isFinite(Number(p?.lon)) ? Number(p.lon) : null,
       notes: String(p?.notes || "").trim(),
     }))
+    .map((p) => {
+      // Migration: fix old Harbor profile saved with incorrect city.
+      if (p.id === "park-harbor" && String(p.location || "").toLowerCase() === "anaheim, ca") {
+        return {
+          ...p,
+          name: "Harbor City Skate Park",
+          location: "Harbor City, CA",
+          lat: 33.7903,
+          lon: -118.2987,
+        };
+      }
+      return p;
+    })
     .filter((p) => p.id && p.name);
   const parkPrefsRaw = toObj(src.parkPrefsBySkaterId, {});
   const parkPrefsBySkaterId = Object.fromEntries(
@@ -1477,17 +1523,18 @@ export default function SkateTrainingPlanApp() {
   const [loginPickId, setLoginPickId] = useState(auth.loggedInMemberId || members[0]?.id);
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [biometricBusy, setBiometricBusy] = useState(false);
 
   const ensurePinRequired = (memberId) => {
     const m = members.find((x) => x.id === memberId);
     if (!m) return true;
-    if (m.pin && String(m.pin).trim().length >= 4) return true;
+    if (m.pin && sanitizePin(m.pin).length === 4) return true;
 
-    let nextPin = prompt(`Set a PIN for ${m.name} (required — min 4 digits):`, "");
+    let nextPin = prompt(`Set a 4-digit PIN for ${m.name}:`, "");
     if (nextPin == null) return false;
-    nextPin = String(nextPin).trim();
-    if (nextPin.length < 4) {
-      alert("PIN must be at least 4 characters.");
+    nextPin = sanitizePin(nextPin);
+    if (nextPin.length !== 4) {
+      alert("PIN must be exactly 4 digits.");
       return false;
     }
     setSlice({ members: members.map((x) => (x.id === memberId ? { ...x, pin: nextPin } : x)) });
@@ -1498,8 +1545,89 @@ export default function SkateTrainingPlanApp() {
     const m = members.find((x) => x.id === memberId);
     if (!m) return false;
     if (!ensurePinRequired(memberId)) return false;
-    const stored = String(m.pin || "").trim();
-    return String(pin || "").trim() === stored;
+    const stored = sanitizePin(m.pin || "");
+    return sanitizePin(pin || "") === stored;
+  };
+
+  const createBiometricChallenge = (len = 32) => {
+    const bytes = new Uint8Array(len);
+    if (!window.crypto?.getRandomValues) return null;
+    window.crypto.getRandomValues(bytes);
+    return bytes;
+  };
+
+  const registerBiometricForMember = async (member) => {
+    if (!member?.id) return false;
+    if (!supportsBiometricLogin()) {
+      throw new Error("Biometric login is not supported on this device/browser.");
+    }
+    const challenge = createBiometricChallenge(32);
+    const userIdBytes = createBiometricChallenge(16);
+    if (!challenge || !userIdBytes) throw new Error("Secure biometric setup is unavailable.");
+    const credential = await navigator.credentials.create({
+      publicKey: {
+        challenge,
+        rp: { name: "SkateFlow" },
+        user: {
+          id: userIdBytes,
+          name: `${member.id}@skateflow.local`,
+          displayName: member.name || "SkateFlow",
+        },
+        pubKeyCredParams: [
+          { type: "public-key", alg: -7 },
+          { type: "public-key", alg: -257 },
+        ],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "preferred",
+        },
+        timeout: 60000,
+        attestation: "none",
+      },
+    });
+    const id = credential?.rawId ? arrayBufferToBase64Url(credential.rawId) : "";
+    if (!id) throw new Error("Unable to save biometric credential.");
+    setSlice({
+      members: members.map((x) => (x.id === member.id ? { ...x, biometricCredentialId: id } : x)),
+    });
+    return true;
+  };
+
+  const biometricLogin = async (memberId) => {
+    const member = members.find((x) => x.id === memberId);
+    if (!member) return false;
+    if (!supportsBiometricLogin()) {
+      setLoginError("Biometric login is not supported on this device/browser.");
+      return false;
+    }
+    if (!member.biometricCredentialId) {
+      setLoginError("No Face/Fingerprint login is set for this account yet.");
+      return false;
+    }
+    try {
+      setBiometricBusy(true);
+      setLoginError("");
+      const challenge = createBiometricChallenge(32);
+      if (!challenge) throw new Error("Secure biometric challenge unavailable.");
+      await navigator.credentials.get({
+        publicKey: {
+          challenge,
+          allowCredentials: [{ type: "public-key", id: base64UrlToArrayBuffer(member.biometricCredentialId) }],
+          userVerification: "required",
+          timeout: 60000,
+        },
+      });
+      setSlice({ auth: { loggedInMemberId: memberId }, ui: { ...ui, activeMemberId: memberId } });
+      setLoginOpen(false);
+      toast("Biometric login", `Welcome back, ${member.name}.`, "success");
+      return true;
+    } catch (err) {
+      setLoginError(err?.message || "Biometric login failed.");
+      return false;
+    } finally {
+      setBiometricBusy(false);
+    }
   };
 
   const [draftMedia, setDraftMedia] = useState([]);
@@ -1819,6 +1947,13 @@ export default function SkateTrainingPlanApp() {
   const [parkLookupQuery, setParkLookupQuery] = useState("");
   const [parkLookupLoading, setParkLookupLoading] = useState(false);
   const [parkLookupResults, setParkLookupResults] = useState([]);
+  const [parkDraft, setParkDraft] = useState({
+    name: "",
+    location: "",
+    lat: "",
+    lon: "",
+    notes: "",
+  });
   const [weatherState, setWeatherState] = useState({
     loading: false,
     error: "",
@@ -1830,6 +1965,17 @@ export default function SkateTrainingPlanApp() {
 
   const selectParkForActiveSkater = (parkId) =>
     setSlice({ parkPrefsBySkaterId: { ...parkPrefsBySkaterId, [ui.activeSkaterId]: parkId } });
+
+  const hydrateParkDraft = (park) => {
+    if (!park) return;
+    setParkDraft({
+      name: String(park.name || ""),
+      location: String(park.location || ""),
+      lat: Number.isFinite(Number(park.lat)) ? String(park.lat) : "",
+      lon: Number.isFinite(Number(park.lon)) ? String(park.lon) : "",
+      notes: String(park.notes || ""),
+    });
+  };
 
   const fetchWeatherForPark = async (park) => {
     if (!park || !Number.isFinite(Number(park.lat)) || !Number.isFinite(Number(park.lon))) {
@@ -1891,7 +2037,7 @@ export default function SkateTrainingPlanApp() {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Location search unavailable.");
       const data = await res.json();
-      const results = toArray(data?.results)
+      const rawResults = toArray(data?.results)
         .map((r) => ({
           name: String(r?.name || "").trim(),
           admin1: String(r?.admin1 || "").trim(),
@@ -1900,6 +2046,14 @@ export default function SkateTrainingPlanApp() {
           lon: Number(r?.longitude),
         }))
         .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lon));
+      const seen = new Set();
+      const results = rawResults.filter((r) => {
+        const location = [r.admin1, r.country].filter(Boolean).join(", ");
+        const key = parkIdentityKey(r.name, location);
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
       setParkLookupResults(results);
       if (!results.length) toast("No locations found", "Try a broader park or city name.", "warn");
     } catch (err) {
@@ -1912,11 +2066,7 @@ export default function SkateTrainingPlanApp() {
   const addParkFromLookup = (item) => {
     if (!item?.name) return;
     const location = [item.admin1, item.country].filter(Boolean).join(", ");
-    const existing = parkProfiles.find(
-      (p) =>
-        String(p.name || "").toLowerCase() === String(item.name || "").toLowerCase() &&
-        String(p.location || "").toLowerCase() === String(location || "").toLowerCase()
-    );
+    const existing = parkProfiles.find((p) => parkIdentityKey(p.name, p.location) === parkIdentityKey(item.name, location));
     if (existing) {
       selectParkForActiveSkater(existing.id);
       toast("Park already saved", `${existing.name} selected.`, "info");
@@ -1935,7 +2085,84 @@ export default function SkateTrainingPlanApp() {
       parkPrefsBySkaterId: { ...parkPrefsBySkaterId, [ui.activeSkaterId]: next.id },
     });
     toast("Park added", `${next.name}${next.location ? ` • ${next.location}` : ""}`, "success");
+    hydrateParkDraft(next);
   };
+
+  const addAllParksFromLookup = () => {
+    const results = toArray(parkLookupResults);
+    if (!results.length) return;
+    const existingKeys = new Set(parkProfiles.map((p) => parkIdentityKey(p.name, p.location)));
+    const nextBatch = [];
+    for (const r of results) {
+      const location = [r.admin1, r.country].filter(Boolean).join(", ");
+      const key = parkIdentityKey(r.name, location);
+      if (existingKeys.has(key)) continue;
+      existingKeys.add(key);
+      nextBatch.push({
+        id: `park-${uid()}`,
+        name: r.name,
+        location,
+        lat: Number(r.lat),
+        lon: Number(r.lon),
+        notes: "Added from search",
+      });
+    }
+    if (!nextBatch.length) {
+      toast("No new parks", "All current results are already saved.", "info");
+      return;
+    }
+    const first = nextBatch[0];
+    setSlice({
+      parkProfiles: [...nextBatch, ...parkProfiles].slice(0, 200),
+      parkPrefsBySkaterId: { ...parkPrefsBySkaterId, [ui.activeSkaterId]: first.id },
+    });
+    hydrateParkDraft(first);
+    toast("Parks added", `${nextBatch.length} location(s) saved to your park list.`, "success");
+  };
+
+  const saveSelectedParkEdits = () => {
+    if (!selectedParkProfile) return;
+    const nextName = String(parkDraft.name || "").trim();
+    const nextLocation = String(parkDraft.location || "").trim();
+    const nextNotes = String(parkDraft.notes || "").trim();
+    const latRaw = String(parkDraft.lat || "").trim();
+    const lonRaw = String(parkDraft.lon || "").trim();
+    if (!nextName) {
+      toast("Park name required", "Add a park name before saving.", "warn");
+      return;
+    }
+    if (latRaw && !Number.isFinite(Number(latRaw))) {
+      toast("Latitude invalid", "Enter a valid number for latitude.", "warn");
+      return;
+    }
+    if (lonRaw && !Number.isFinite(Number(lonRaw))) {
+      toast("Longitude invalid", "Enter a valid number for longitude.", "warn");
+      return;
+    }
+
+    const nextPark = {
+      ...selectedParkProfile,
+      name: nextName,
+      location: nextLocation,
+      notes: nextNotes,
+      lat: latRaw ? Number(latRaw) : null,
+      lon: lonRaw ? Number(lonRaw) : null,
+    };
+
+    const shouldUpdateDraftPark =
+      String(draft.park || "").trim().toLowerCase() === String(selectedParkProfile.name || "").trim().toLowerCase();
+
+    setSlice({
+      parkProfiles: parkProfiles.map((p) => (p.id === selectedParkProfile.id ? nextPark : p)),
+      ...(shouldUpdateDraftPark ? { draft: { ...draft, park: nextName } } : {}),
+    });
+    toast("Park updated", `${nextPark.name}${nextPark.location ? ` • ${nextPark.location}` : ""}`, "success");
+  };
+
+  useEffect(() => {
+    if (!selectedParkProfile) return;
+    hydrateParkDraft(selectedParkProfile);
+  }, [selectedParkId]);
 
   useEffect(() => {
     if (!selectedParkProfile) return;
@@ -3541,7 +3768,7 @@ export default function SkateTrainingPlanApp() {
 
   const LoginBody = () => {
     const picked = members.find((m) => m.id === loginPickId) || members[0];
-    const requirePin = !picked?.pin || String(picked.pin).trim().length < 4;
+    const requirePin = sanitizePin(picked?.pin || "").length !== 4;
 
     return (
       <div>
@@ -3564,15 +3791,19 @@ export default function SkateTrainingPlanApp() {
           </select>
 
           <div className="mt-3 text-xs text-white/60">
-            {requirePin ? "This account needs a PIN. You’ll set it now." : "Enter your PIN to continue."}
+            {requirePin ? "This account needs a 4-digit PIN. You’ll set it now." : "Enter your 4-digit PIN to continue."}
           </div>
 
           <div className="mt-2 flex gap-2">
             <input
               value={loginPin}
-              onChange={(e) => setLoginPin(e.target.value)}
-              placeholder={requirePin ? "Set PIN (min 4)" : "PIN"}
+              onChange={(e) => setLoginPin(sanitizePin(e.target.value))}
+              placeholder={requirePin ? "Set 4-digit PIN" : "4-digit PIN"}
               type="password"
+              inputMode="numeric"
+              pattern="[0-9]*"
+              maxLength={4}
+              autoComplete={requirePin ? "new-password" : "current-password"}
               className="flex-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
             />
             <button
@@ -3584,9 +3815,9 @@ export default function SkateTrainingPlanApp() {
                 if (!m) return;
 
                 if (requirePin) {
-                  const pin = String(loginPin || "").trim();
-                  if (pin.length < 4) {
-                    setLoginError("PIN must be at least 4 characters.");
+                  const pin = sanitizePin(loginPin || "");
+                  if (pin.length !== 4) {
+                    setLoginError("PIN must be exactly 4 digits.");
                     return;
                   }
                   setSlice({
@@ -3615,6 +3846,19 @@ export default function SkateTrainingPlanApp() {
               Enter
             </button>
           </div>
+
+          {!requirePin && supportsBiometricLogin() ? (
+            <div className="mt-2">
+              <button
+                type="button"
+                onClick={() => biometricLogin(loginPickId)}
+                disabled={biometricBusy}
+                className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-semibold hover:bg-white/10 disabled:opacity-60"
+              >
+                {biometricBusy ? "Checking Face/Fingerprint..." : "Use Face/Fingerprint"}
+              </button>
+            </div>
+          ) : null}
 
           {loginError ? <div className="mt-2 text-sm text-rose-200">{loginError}</div> : null}
         </div>
@@ -4546,7 +4790,7 @@ export default function SkateTrainingPlanApp() {
                   <input
                     value={parkLookupQuery}
                     onChange={(e) => setParkLookupQuery(e.target.value)}
-                    placeholder="Find park or city"
+                    placeholder="Find park or city (ex: Harbor City skate park)"
                     className={isLightMode ? "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
                   />
                   <button
@@ -4559,24 +4803,100 @@ export default function SkateTrainingPlanApp() {
                 </div>
 
                 {parkLookupResults.length ? (
-                  <div className="mt-3 grid grid-cols-1 md:grid-cols-2 gap-2">
-                    {parkLookupResults.slice(0, 6).map((r, idx) => (
-                      <div key={`${r.name}-${idx}`} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                        <div className="text-sm font-semibold">{r.name}</div>
-                        <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
-                          {[r.admin1, r.country].filter(Boolean).join(", ")}
-                        </div>
-                        <div className="mt-2">
-                          <button
-                            type="button"
-                            onClick={() => addParkFromLookup(r)}
-                            className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
-                          >
-                            Save Park
-                          </button>
-                        </div>
+                  <div className="mt-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className={isLightMode ? "text-xs text-slate-600" : "text-xs text-white/60"}>
+                        {parkLookupResults.length} location match(es)
                       </div>
-                    ))}
+                      <button
+                        type="button"
+                        onClick={addAllParksFromLookup}
+                        className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
+                      >
+                        Save All Results
+                      </button>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
+                      {parkLookupResults.slice(0, 12).map((r, idx) => (
+                        <div key={`${r.name}-${idx}`} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
+                          <div className="text-sm font-semibold">{r.name}</div>
+                          <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
+                            {[r.admin1, r.country].filter(Boolean).join(", ")}
+                          </div>
+                          <div className={isLightMode ? "text-[11px] mt-1 text-slate-500" : "text-[11px] mt-1 text-white/50"}>
+                            {Number(r.lat).toFixed(4)}, {Number(r.lon).toFixed(4)}
+                          </div>
+                          <div className="mt-2">
+                            <button
+                              type="button"
+                              onClick={() => addParkFromLookup(r)}
+                              className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
+                            >
+                              Save Park
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                {selectedParkProfile ? (
+                  <div className={`mt-3 rounded-2xl p-3 ${isLightMode ? "bg-slate-50 ring-1 ring-slate-300" : "bg-black/30 ring-1 ring-white/10"}`}>
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="text-sm font-semibold">Edit Selected Park</div>
+                      <button
+                        type="button"
+                        onClick={() => hydrateParkDraft(selectedParkProfile)}
+                        className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
+                      >
+                        Reset
+                      </button>
+                    </div>
+                    <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-2">
+                      <input
+                        value={parkDraft.name}
+                        onChange={(e) => setParkDraft((p) => ({ ...p, name: e.target.value }))}
+                        placeholder="Park name"
+                        className={isLightMode ? "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
+                      />
+                      <input
+                        value={parkDraft.location}
+                        onChange={(e) => setParkDraft((p) => ({ ...p, location: e.target.value }))}
+                        placeholder="City, State"
+                        className={isLightMode ? "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
+                      />
+                      <input
+                        value={parkDraft.lat}
+                        onChange={(e) => setParkDraft((p) => ({ ...p, lat: e.target.value }))}
+                        placeholder="Latitude"
+                        inputMode="decimal"
+                        className={isLightMode ? "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
+                      />
+                      <input
+                        value={parkDraft.lon}
+                        onChange={(e) => setParkDraft((p) => ({ ...p, lon: e.target.value }))}
+                        placeholder="Longitude"
+                        inputMode="decimal"
+                        className={isLightMode ? "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
+                      />
+                    </div>
+                    <textarea
+                      value={parkDraft.notes}
+                      onChange={(e) => setParkDraft((p) => ({ ...p, notes: e.target.value }))}
+                      placeholder="Notes"
+                      rows={2}
+                      className={isLightMode ? "mt-2 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "mt-2 w-full rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
+                    />
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        onClick={saveSelectedParkEdits}
+                        className="rounded-xl bg-white text-black px-3 py-2 text-xs font-extrabold hover:bg-white/90"
+                      >
+                        Save Park Details
+                      </button>
+                    </div>
                   </div>
                 ) : null}
 
@@ -5349,12 +5669,12 @@ export default function SkateTrainingPlanApp() {
                           const name = prompt("Member name:");
                           if (!name) return;
                           const role = (prompt("Role (owner/coach/dad):", "dad") || "dad").trim();
-                          const pin = (prompt("Set PIN (required, min 4):", "") || "").trim();
-                          if (pin.length < 4) {
-                            alert("PIN must be at least 4 characters.");
+                          const pin = sanitizePin(prompt("Set PIN (required, exactly 4 digits):", "") || "");
+                          if (pin.length !== 4) {
+                            alert("PIN must be exactly 4 digits.");
                             return;
                           }
-                          const m = { id: `m-${uid()}`, name: name.trim(), role: role || "dad", pin, photoUrl: "" };
+                          const m = { id: `m-${uid()}`, name: name.trim(), role: role || "dad", pin, photoUrl: "", biometricCredentialId: "" };
                           setSlice({ members: [...members, m] });
                           toast("Member added", `${m.name} (${m.role}) added.`, "success");
                         }}
@@ -5408,11 +5728,11 @@ export default function SkateTrainingPlanApp() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const nextPin = prompt("Set/Change PIN (min 4):", m.pin || "");
+                                  const nextPin = prompt("Set/Change PIN (exactly 4 digits):", m.pin || "");
                                   if (nextPin == null) return;
-                                  const v = String(nextPin).trim();
-                                  if (v.length < 4) {
-                                    alert("PIN must be at least 4 characters.");
+                                  const v = sanitizePin(nextPin);
+                                  if (v.length !== 4) {
+                                    alert("PIN must be exactly 4 digits.");
                                     return;
                                   }
                                   setSlice({ members: members.map((x) => (x.id === m.id ? { ...x, pin: v } : x)) });
@@ -5421,6 +5741,24 @@ export default function SkateTrainingPlanApp() {
                                 className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
                               >
                                 Set PIN
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  try {
+                                    setBiometricBusy(true);
+                                    await registerBiometricForMember(m);
+                                    toast("Biometric set", `Face/Fingerprint ready for ${m.name}.`, "success");
+                                  } catch (err) {
+                                    toast("Biometric setup failed", err?.message || "Could not set biometric login.", "warn");
+                                  } finally {
+                                    setBiometricBusy(false);
+                                  }
+                                }}
+                                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                              >
+                                Set Face/Fingerprint
                               </button>
 
                               {members.length > 1 && m.role !== "owner" ? (
