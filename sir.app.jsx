@@ -11,6 +11,7 @@ import {
   ClipboardList,
   Crown,
   Download,
+  ExternalLink,
   Flame,
   Image as ImageIcon,
   LayoutGrid,
@@ -299,6 +300,43 @@ function sanitizePin(value) {
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))
     .replace(/[۰-۹]/g, (d) => String(d.charCodeAt(0) - 0x06f0));
   return normalized.replace(/\D/g, "").slice(0, 4);
+}
+
+function normalizeExternalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  const withProtocol = /^https?:\/\//i.test(raw) ? raw : /^[\w.-]+\.[a-z]{2,}(?:\/.*)?$/i.test(raw) ? `https://${raw}` : raw;
+  try {
+    const parsed = new URL(withProtocol);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return raw;
+    return parsed.toString();
+  } catch {
+    return raw;
+  }
+}
+
+function isOpenableExternalUrl(value) {
+  try {
+    const parsed = new URL(String(value || ""));
+    return parsed.protocol === "http:" || parsed.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
+function musicProviderLabelFromUrl(value) {
+  const url = String(value || "").toLowerCase();
+  if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
+  if (url.includes("music.apple.com") || url.includes("itunes.apple.com")) return "Apple Music";
+  return "Music link";
+}
+
+function buildMusicSearchUrl(provider, query) {
+  const q = String(query || "").trim();
+  if (!q) return "";
+  if (provider === "youtube") return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+  if (provider === "apple") return `https://music.apple.com/us/search?term=${encodeURIComponent(q)}`;
+  return "";
 }
 
 function getBiometricUnavailableReason() {
@@ -2549,6 +2587,7 @@ export default function SkateTrainingPlanApp() {
       round: contestState.round || "Qualifiers",
       durationSec: 45,
       song: "",
+      musicUrl: "",
       bpm: "",
       dropAt: "",
       score: "",
@@ -2565,6 +2604,32 @@ export default function SkateTrainingPlanApp() {
     patchContestState({
       runs: (contestState.runs || []).map((r) => (r.id === runId ? { ...r, ...patch } : r)),
     });
+  };
+
+  const contestRunMusicQuery = (run) =>
+    [String(run?.song || "").trim(), run?.bpm ? `${run.bpm} bpm` : "", String(contestState.eventName || "").trim()].filter(Boolean).join(" ");
+
+  const setContestRunMusicLink = (runId, provider) => {
+    const run = (contestState.runs || []).find((r) => r.id === runId);
+    if (!run) return;
+    const query = contestRunMusicQuery(run);
+    if (!query) {
+      toast("Add song details first", "Type song/artist (and optional BPM) before search.", "warn");
+      return;
+    }
+    const nextUrl = buildMusicSearchUrl(provider, query);
+    if (!nextUrl) return;
+    updateContestRun(runId, { musicUrl: nextUrl });
+    toast("Music link set", `${provider === "youtube" ? "YouTube" : "Apple Music"} search link added.`, "success");
+  };
+
+  const openContestRunMusicLink = (run) => {
+    const url = normalizeExternalUrl(run?.musicUrl || "");
+    if (!isOpenableExternalUrl(url)) {
+      toast("Invalid music link", "Add a full URL (YouTube or Apple Music).", "warn");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
   };
 
   const deleteContestRun = (runId) => {
@@ -5617,6 +5682,49 @@ export default function SkateTrainingPlanApp() {
                           </div>
                         </div>
 
+                        <div className="mt-2 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                          <div className="text-xs text-white/60">Music Link (YouTube or Apple Music)</div>
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-4 gap-2">
+                            <input
+                              value={run.musicUrl || ""}
+                              onChange={(e) => updateContestRun(run.id, { musicUrl: e.target.value })}
+                              onBlur={(e) => updateContestRun(run.id, { musicUrl: normalizeExternalUrl(e.target.value) })}
+                              placeholder="Paste YouTube / Apple Music URL"
+                              className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => setContestRunMusicLink(run.id, "youtube")}
+                              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                            >
+                              <Search className="h-4 w-4 inline-block mr-1" />
+                              YouTube
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setContestRunMusicLink(run.id, "apple")}
+                              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                            >
+                              <Search className="h-4 w-4 inline-block mr-1" />
+                              Apple Music
+                            </button>
+                          </div>
+                          <div className="mt-2 flex items-center justify-between gap-2">
+                            <div className="text-[11px] text-white/60">
+                              {run.musicUrl ? `${musicProviderLabelFromUrl(run.musicUrl)} link saved` : "No music link attached yet."}
+                            </div>
+                            <button
+                              type="button"
+                              onClick={() => openContestRunMusicLink(run)}
+                              disabled={!isOpenableExternalUrl(normalizeExternalUrl(run.musicUrl || ""))}
+                              className="rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-xs font-semibold hover:bg-cyan-500/30 text-cyan-100 disabled:opacity-50"
+                            >
+                              <ExternalLink className="h-4 w-4 inline-block mr-1" />
+                              Open Link
+                            </button>
+                          </div>
+                        </div>
+
                         <div className="mt-3 rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                           <div className="flex items-center justify-between">
                             <div className="text-sm font-semibold">Trick line</div>
@@ -5701,6 +5809,7 @@ export default function SkateTrainingPlanApp() {
                           {r.song ? ` • ${r.song}` : ""}
                           {r.bpm ? ` • ${r.bpm} BPM` : ""}
                           {r.dropAt ? ` • Drop ${r.dropAt}` : ""}
+                          {r.musicUrl ? ` • ${musicProviderLabelFromUrl(r.musicUrl)}` : ""}
                         </div>
                       ))}
                     </div>
