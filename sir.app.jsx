@@ -1531,17 +1531,8 @@ export default function SkateTrainingPlanApp() {
   const [loginPin, setLoginPin] = useState("");
   const [loginError, setLoginError] = useState("");
   const [biometricBusy, setBiometricBusy] = useState(false);
-  const loginPinInputRef = useRef(null);
   const biometricUnavailableReason = getBiometricUnavailableReason();
   const biometricSupported = !biometricUnavailableReason;
-
-  useEffect(() => {
-    if (!loginOpen) return undefined;
-    const timer = window.setTimeout(() => {
-      loginPinInputRef.current?.focus?.();
-    }, 120);
-    return () => window.clearTimeout(timer);
-  }, [loginOpen, loginPickId]);
 
   const ensurePinRequired = (memberId) => {
     const m = members.find((x) => x.id === memberId);
@@ -3865,71 +3856,60 @@ export default function SkateTrainingPlanApp() {
             {requirePin ? "This account needs a 4-digit PIN. You’ll set it now." : "Enter your 4-digit PIN to continue."}
           </div>
 
-          <div className="mt-2 flex gap-2">
-            <input
-              ref={loginPinInputRef}
-              value={loginPin}
-              onChange={(e) => {
-                setLoginPin(sanitizePin(e.target.value));
-                if (loginError) setLoginError("");
-              }}
-              onPaste={(e) => {
-                e.preventDefault();
-                const pasted = e.clipboardData?.getData("text") || "";
-                setLoginPin(sanitizePin(pasted));
-                if (loginError) setLoginError("");
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") {
-                  e.preventDefault();
-                  submitLogin();
-                }
-              }}
-              placeholder={requirePin ? "Set 4-digit PIN" : "4-digit PIN"}
-              type="password"
-              inputMode="numeric"
-              pattern="[0-9]*"
-              maxLength={4}
-              autoComplete={requirePin ? "new-password" : "current-password"}
-              autoCorrect="off"
-              autoCapitalize="off"
-              spellCheck={false}
-              className="flex-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-base"
-            />
+          <div className="mt-2 rounded-xl bg-black/40 border border-white/10 px-3 py-3">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs text-white/60">PIN</div>
+              <div className="text-xs text-white/40">{loginPin.length}/4</div>
+            </div>
+            <div className="mt-2 flex items-center justify-center gap-2">
+              {[0, 1, 2, 3].map((idx) => (
+                <div
+                  key={idx}
+                  className={`h-3 w-3 rounded-full ring-1 ${idx < loginPin.length ? "bg-white ring-white/80" : "bg-transparent ring-white/30"}`}
+                />
+              ))}
+            </div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {pinPadDigits.slice(0, 9).map((digit) => (
+                <button
+                  key={digit}
+                  type="button"
+                  onClick={() => appendPinDigit(digit)}
+                  className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10"
+                >
+                  {digit}
+                </button>
+              ))}
+              <button
+                type="button"
+                onClick={clearPinDigits}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => appendPinDigit("0")}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10"
+              >
+                0
+              </button>
+              <button
+                type="button"
+                onClick={removePinDigit}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+              >
+                Back
+              </button>
+            </div>
             <button
               type="button"
-              className="rounded-xl bg-white text-black px-4 py-2 text-sm font-extrabold hover:bg-white/90 inline-flex items-center gap-2"
+              className="mt-3 w-full rounded-xl bg-white text-black px-4 py-2 text-sm font-extrabold hover:bg-white/90 inline-flex items-center justify-center gap-2 disabled:opacity-50"
               onClick={submitLogin}
+              disabled={loginPin.length !== 4}
             >
               <LogIn className="h-4 w-4" />
               Enter
-            </button>
-          </div>
-          <div className="mt-2 text-[11px] text-white/50">If iPhone keyboard closes, use the PIN keypad below.</div>
-          <div className="mt-2 grid grid-cols-3 gap-2">
-            {pinPadDigits.map((digit) => (
-              <button
-                key={digit}
-                type="button"
-                onClick={() => appendPinDigit(digit)}
-                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-sm font-bold hover:bg-white/10"
-              >
-                {digit}
-              </button>
-            ))}
-            <button
-              type="button"
-              onClick={clearPinDigits}
-              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={removePinDigit}
-              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
-            >
-              Back
             </button>
           </div>
 
