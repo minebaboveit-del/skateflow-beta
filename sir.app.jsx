@@ -3786,7 +3786,7 @@ export default function SkateTrainingPlanApp() {
     toast("Member renamed", `${oldName} -> ${name}`, "info");
   };
 
-  const LoginBody = () => {
+  const loginBody = (() => {
     const picked = members.find((m) => m.id === loginPickId) || members[0];
     const requirePin = sanitizePin(picked?.pin || "").length !== 4;
 
@@ -3911,7 +3911,7 @@ export default function SkateTrainingPlanApp() {
         </div>
       </div>
     );
-  };
+  })();
 
   const activeXP = xpBySkaterId[ui.activeSkaterId] || 0;
   const xpLevel = levelFromXP(activeXP);
@@ -3954,7 +3954,7 @@ export default function SkateTrainingPlanApp() {
           if (auth.loggedInMemberId) setLoginOpen(false);
         }}
       >
-        <LoginBody />
+        {loginBody}
       </Modal>
 
       <Modal open={sessionEdit.open} title="Edit Session Card" onClose={closeSessionEditor}>
