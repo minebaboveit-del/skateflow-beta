@@ -326,7 +326,7 @@ function isOpenableExternalUrl(value) {
 
 function musicProviderLabelFromUrl(value) {
   const url = String(value || "").toLowerCase();
-  if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
+  if (url.includes("music.youtube.com") || url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube Music";
   if (url.includes("music.apple.com") || url.includes("itunes.apple.com")) return "Apple Music";
   return "Music link";
 }
@@ -334,7 +334,7 @@ function musicProviderLabelFromUrl(value) {
 function buildMusicSearchUrl(provider, query) {
   const q = String(query || "").trim();
   if (!q) return "";
-  if (provider === "youtube") return `https://www.youtube.com/results?search_query=${encodeURIComponent(q)}`;
+  if (provider === "youtube") return `https://music.youtube.com/search?q=${encodeURIComponent(q)}`;
   if (provider === "apple") return `https://music.apple.com/us/search?term=${encodeURIComponent(q)}`;
   return "";
 }
@@ -2645,13 +2645,13 @@ export default function SkateTrainingPlanApp() {
     const nextUrl = buildMusicSearchUrl(provider, query);
     if (!nextUrl) return;
     updateContestRun(runId, { musicUrl: nextUrl });
-    toast("Music link set", `${provider === "youtube" ? "YouTube" : "Apple Music"} search link added.`, "success");
+    toast("Music link set", `${provider === "youtube" ? "YouTube Music" : "Apple Music"} search link added.`, "success");
   };
 
   const openContestRunMusicLink = (run) => {
     const url = normalizeExternalUrl(run?.musicUrl || "");
     if (!isOpenableExternalUrl(url)) {
-      toast("Invalid music link", "Add a full URL (YouTube or Apple Music).", "warn");
+      toast("Invalid music link", "Add a full URL (YouTube Music or Apple Music).", "warn");
       return;
     }
     window.open(url, "_blank", "noopener,noreferrer");
@@ -5776,13 +5776,13 @@ export default function SkateTrainingPlanApp() {
                         </div>
 
                         <div className="mt-2 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
-                          <div className="text-xs text-white/60">Music Link (YouTube or Apple Music)</div>
+                          <div className="text-xs text-white/60">Music Link (YouTube Music or Apple Music)</div>
                           <div className="mt-2 grid grid-cols-1 sm:grid-cols-4 gap-2">
                             <input
                               value={run.musicUrl || ""}
                               onChange={(e) => updateContestRun(run.id, { musicUrl: e.target.value })}
                               onBlur={(e) => updateContestRun(run.id, { musicUrl: normalizeExternalUrl(e.target.value) })}
-                              placeholder="Paste YouTube / Apple Music URL"
+                              placeholder="Paste YouTube Music / Apple Music URL"
                               className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                             />
                             <button
@@ -5791,7 +5791,7 @@ export default function SkateTrainingPlanApp() {
                               className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
                             >
                               <Search className="h-4 w-4 inline-block mr-1" />
-                              YouTube
+                              YouTube Music
                             </button>
                             <button
                               type="button"
