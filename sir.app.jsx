@@ -1518,11 +1518,25 @@ export default function SkateTrainingPlanApp() {
   const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now());
   const reminderFiredRef = useRef(new Set());
   const reminderExportBusyRef = useRef(false);
+  const [editingPracticeId, setEditingPracticeId] = useState("");
+  const [practiceEditDraft, setPracticeEditDraft] = useState({
+    dateISO: "",
+    time: "17:00",
+    durationMin: 60,
+    remindMin: 60,
+    title: "",
+    park: "",
+    notes: "",
+  });
 
   useEffect(() => {
     const timerId = window.setInterval(() => setCalendarNowMs(Date.now()), 30000);
     return () => window.clearInterval(timerId);
   }, []);
+
+  useEffect(() => {
+    setEditingPracticeId("");
+  }, [ui.activeSkaterId, ui.view]);
 
   const activePracticeEvents = useMemo(() => {
     const list = toArray(practiceEvents)
@@ -3704,8 +3718,66 @@ export default function SkateTrainingPlanApp() {
     }
   };
 
+  const openPracticeEditor = (ev) => {
+    if (!ev?.id) return;
+    setEditingPracticeId(ev.id);
+    setPracticeEditDraft({
+      dateISO: isValidISODate(ev.dateISO) ? ev.dateISO : todayISO(),
+      time: isValidTimeHHMM(ev.time) ? ev.time : "17:00",
+      durationMin: Math.max(5, Number(ev.durationMin) || 60),
+      remindMin: Math.max(0, Number(ev.remindMin) || 60),
+      title: String(ev.title || "SkateFlow Practice"),
+      park: String(ev.park || ""),
+      notes: String(ev.notes || ""),
+    });
+  };
+
+  const cancelPracticeEditor = () => {
+    setEditingPracticeId("");
+    setPracticeEditDraft({
+      dateISO: "",
+      time: "17:00",
+      durationMin: 60,
+      remindMin: 60,
+      title: "",
+      park: "",
+      notes: "",
+    });
+  };
+
+  const savePracticeEdit = () => {
+    const eventId = String(editingPracticeId || "");
+    if (!eventId) return;
+    const safeDate = isValidISODate(practiceEditDraft.dateISO) ? practiceEditDraft.dateISO : todayISO();
+    const safeTime = isValidTimeHHMM(practiceEditDraft.time) ? practiceEditDraft.time : "17:00";
+    const safeDuration = Math.max(5, Number(practiceEditDraft.durationMin) || 60);
+    const safeRemind = Math.max(0, Number(practiceEditDraft.remindMin) || 60);
+    const safeTitle = String(practiceEditDraft.title || "").trim() || "SkateFlow Practice";
+    const safePark = String(practiceEditDraft.park || "").trim();
+    const safeNotes = String(practiceEditDraft.notes || "").trim();
+    setSlice({
+      practiceEvents: practiceEvents.map((ev) =>
+        ev.id === eventId
+          ? {
+              ...ev,
+              dateISO: safeDate,
+              time: safeTime,
+              durationMin: safeDuration,
+              remindMin: safeRemind,
+              title: safeTitle,
+              park: safePark,
+              notes: safeNotes,
+            }
+          : ev
+      ),
+    });
+    toast("Practice updated", `${safeDate} ${formatStandardTime(safeTime)} saved.`, "success");
+    cancelPracticeEditor();
+  };
+
   const removePracticeEvent = (id) => {
     setSlice({ practiceEvents: practiceEvents.filter((x) => x.id !== id) });
+    if (editingPracticeId === id) cancelPracticeEditor();
     toast("Removed", "Practice removed.", "warn");
   };
 
@@ -5008,6 +5080,13 @@ export default function SkateTrainingPlanApp() {
                           <div className="flex gap-2">
                             <button
                               type="button"
+                              onClick={() => openPracticeEditor(ev)}
+                              className={isLightMode ? "rounded-lg bg-cyan-50 ring-1 ring-cyan-300 text-cyan-700 px-3 py-1.5 text-xs font-semibold hover:bg-cyan-100" : "rounded-lg bg-cyan-500/15 ring-1 ring-cyan-500/30 text-cyan-200 px-3 py-1.5 text-xs font-semibold hover:bg-cyan-500/25"}
+                            >
+                              Edit
+                            </button>
+                            <button
+                              type="button"
                               onClick={() => exportPracticeEvent(ev)}
                               className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
                             >
@@ -5025,6 +5104,89 @@ export default function SkateTrainingPlanApp() {
                         <div className={isLightMode ? "text-xs text-slate-600" : "text-xs text-white/60"}>
                           Reminder {Math.max(0, Number(ev.remindMin) || 0)} min before
                         </div>
+                        {editingPracticeId === ev.id ? (
+                          <div className={isLightMode ? "mt-3 rounded-xl bg-white ring-1 ring-slate-300 p-3" : "mt-3 rounded-xl bg-black/40 ring-1 ring-white/10 p-3"}>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                              <div>
+                                <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Date</div>
+                                <input
+                                  type="date"
+                                  value={practiceEditDraft.dateISO}
+                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, dateISO: e.target.value }))}
+                                  className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                                />
+                              </div>
+                              <div>
+                                <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Time</div>
+                                <input
+                                  type="time"
+                                  value={practiceEditDraft.time}
+                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, time: e.target.value }))}
+                                  className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                                />
+                              </div>
+                              <div>
+                                <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Title</div>
+                                <input
+                                  value={practiceEditDraft.title}
+                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, title: e.target.value }))}
+                                  className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                                />
+                              </div>
+                              <div>
+                                <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Park</div>
+                                <input
+                                  value={practiceEditDraft.park}
+                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, park: e.target.value }))}
+                                  className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                                />
+                              </div>
+                              <div>
+                                <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Duration (min)</div>
+                                <input
+                                  inputMode="numeric"
+                                  value={practiceEditDraft.durationMin}
+                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, durationMin: clampNum(e.target.value) || 0 }))}
+                                  className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                                />
+                              </div>
+                              <div>
+                                <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Reminder (min before)</div>
+                                <input
+                                  inputMode="numeric"
+                                  value={practiceEditDraft.remindMin}
+                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, remindMin: clampNum(e.target.value) || 0 }))}
+                                  className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                                />
+                              </div>
+                            </div>
+                            <div className="mt-2">
+                              <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Notes</div>
+                              <textarea
+                                rows={2}
+                                value={practiceEditDraft.notes}
+                                onChange={(e) => setPracticeEditDraft((p) => ({ ...p, notes: e.target.value }))}
+                                className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
+                              />
+                            </div>
+                            <div className="mt-2 flex gap-2">
+                              <button
+                                type="button"
+                                onClick={savePracticeEdit}
+                                className={isLightMode ? "rounded-lg bg-slate-900 text-white px-3 py-1.5 text-xs font-semibold hover:bg-slate-800" : "rounded-lg bg-white text-black px-3 py-1.5 text-xs font-semibold hover:bg-white/90"}
+                              >
+                                Save Changes
+                              </button>
+                              <button
+                                type="button"
+                                onClick={cancelPracticeEditor}
+                                className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
+                              >
+                                Cancel
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                       </div>
                     ))}
                     {!activePracticeEvents.length ? (
