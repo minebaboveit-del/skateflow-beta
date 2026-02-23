@@ -119,6 +119,8 @@ const INITIAL_STORE = {
 
 const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "settings"]);
 const MEDIA_DAY_LABEL = "Media Day";
+const FREE_SKATE_KIND = "free-skate";
+const SKATE_TRIP_KIND = "skate-trip";
 const MAX_UPLOAD_COUNT = 24;
 const MAX_MEDIA_FILE_BYTES = 80 * 1024 * 1024;
 const MAX_IMAGE_FILE_BYTES = 25 * 1024 * 1024;
@@ -126,6 +128,8 @@ const MAX_BACKUP_BYTES = 8 * 1024 * 1024;
 const MAX_ICS_BYTES = 2 * 1024 * 1024;
 const MAX_EMBEDDED_MEDIA_BYTES = 2 * 1024 * 1024;
 const BUILD_STAMP = "beta-2026-02-22-1";
+const GOSKATE_LISTING_API = "https://goskate.com/sp/wp-json/wp/v2/listing";
+const GOSKATE_LISTING_FIELDS = "id,link,title.rendered,property_meta.REAL_HOMES_property_location,property_meta.REAL_HOMES_property_address,modified";
 
 const BETA_CHECK_ITEMS = [
   { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad." },
@@ -133,7 +137,7 @@ const BETA_CHECK_ITEMS = [
   { id: "media_upload", label: "Media upload", detail: "Photo/video upload works in Log and Cards." },
   { id: "media_trim", label: "Video trim/edit", detail: "Trim tool saves updated clip." },
   { id: "contest", label: "Contest run tracking", detail: "Runs, tricks, song, and media save correctly." },
-  { id: "skate_day", label: "Skate Day tab", detail: "Day trip entry and media save correctly." },
+  { id: "skate_day", label: "Free Skate tab", detail: "Free skate/skate trip entry and media save correctly." },
   { id: "chat", label: "Team chat", detail: "Chat send/clear works for active skater." },
   { id: "cloud_sync", label: "Cloud sync", detail: "Push/Pull and auto sync work across devices." },
   { id: "ios_pwa", label: "iPhone home screen", detail: "App opens from Add to Home Screen." },
@@ -472,7 +476,15 @@ function normalizeStoreShape(raw) {
         String(skaterId || ""),
         toArray(list).map((d) => ({
           id: String(d?.id || `sd-${uid()}`),
-          title: String(d?.title || "Skate Day"),
+          kind:
+            String(d?.kind || "").trim() === SKATE_TRIP_KIND
+              ? SKATE_TRIP_KIND
+              : String(d?.kind || "").trim() === FREE_SKATE_KIND
+              ? FREE_SKATE_KIND
+              : /trip/i.test(String(d?.title || ""))
+              ? SKATE_TRIP_KIND
+              : FREE_SKATE_KIND,
+          title: String(d?.title || "Free Skate"),
           dateISO: String(d?.dateISO || todayISO()),
           park: String(d?.park || ""),
           notes: String(d?.notes || ""),
@@ -707,6 +719,8 @@ function normalizeParkLookupResults(rawResults) {
       country: String(r?.country || "").trim(),
       lat: Number(r?.latitude),
       lon: Number(r?.longitude),
+      source: "open-meteo",
+      sourceUrl: "",
     }))
     .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lon));
   const seen = new Set();
@@ -717,6 +731,58 @@ function normalizeParkLookupResults(rawResults) {
     seen.add(key);
     return true;
   });
+}
+
+function normalizeGoSkateLookupResults(rawResults) {
+  const rows = toArray(rawResults)
+    .map((r) => {
+      const name = String(r?.title?.rendered || "").replace(/<[^>]+>/g, "").trim();
+      const address = String(r?.property_meta?.REAL_HOMES_property_address || "").trim();
+      const lat = Number(r?.property_meta?.REAL_HOMES_property_location?.latitude);
+      const lon = Number(r?.property_meta?.REAL_HOMES_property_location?.longitude);
+      return {
+        name,
+        admin1: address,
+        country: "",
+        lat,
+        lon,
+        source: "goskate",
+        sourceUrl: String(r?.link || ""),
+      };
+    })
+    .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lon));
+  const seen = new Set();
+  return rows.filter((r) => {
+    const location = [r.admin1, r.country].filter(Boolean).join(", ");
+    const key = parkIdentityKey(r.name, location);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function mergeParkLookupResults(...groups) {
+  const out = [];
+  const seen = new Set();
+  for (const group of groups) {
+    for (const item of toArray(group)) {
+      const name = String(item?.name || "").trim();
+      if (!name) continue;
+      const admin1 = String(item?.admin1 || "").trim();
+      const country = String(item?.country || "").trim();
+      const location = [admin1, country].filter(Boolean).join(", ");
+      const key = parkIdentityKey(name, location);
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push({
+        ...item,
+        name,
+        admin1,
+        country,
+      });
+    }
+  }
+  return out;
 }
 
 function getISOWeekKey(dateISO) {
@@ -2098,6 +2164,27 @@ export default function SkateTrainingPlanApp() {
     setParkTypeaheadQuery(String(value || "").trim());
   };
 
+  const fetchOpenMeteoParkResults = async (query, count = 8) => {
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=${Math.max(1, Math.min(30, Number(count) || 8))}&language=en&format=json`;
+    const res = await fetch(url);
+    if (!res.ok) throw new Error("Location search unavailable.");
+    const data = await res.json();
+    return normalizeParkLookupResults(data?.results);
+  };
+
+  const fetchGoSkateParkResults = async (query, count = 12) => {
+    const params = new URLSearchParams({
+      search: String(query || "").trim(),
+      per_page: String(Math.max(1, Math.min(40, Number(count) || 12))),
+      page: "1",
+      _fields: GOSKATE_LISTING_FIELDS,
+    });
+    const res = await fetch(`${GOSKATE_LISTING_API}?${params.toString()}`);
+    if (!res.ok) throw new Error("GoSkate search unavailable.");
+    const data = await res.json();
+    return normalizeGoSkateLookupResults(data);
+  };
+
   useEffect(() => {
     const query = String(parkTypeaheadQuery || "").trim();
     if (query.length < 2) {
@@ -2107,17 +2194,14 @@ export default function SkateTrainingPlanApp() {
     const reqId = parkTypeaheadReqRef.current + 1;
     parkTypeaheadReqRef.current = reqId;
     const timerId = window.setTimeout(async () => {
-      try {
-        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=12&language=en&format=json`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Location lookup unavailable.");
-        const data = await res.json();
-        if (parkTypeaheadReqRef.current !== reqId) return;
-        setParkTypeaheadResults(normalizeParkLookupResults(data?.results));
-      } catch {
-        if (parkTypeaheadReqRef.current !== reqId) return;
-        setParkTypeaheadResults([]);
-      }
+      const [goSkateRes, openMeteoRes] = await Promise.allSettled([
+        query.length >= 3 ? fetchGoSkateParkResults(query, 12) : Promise.resolve([]),
+        fetchOpenMeteoParkResults(query, 12),
+      ]);
+      if (parkTypeaheadReqRef.current !== reqId) return;
+      const goSkateRows = goSkateRes.status === "fulfilled" ? goSkateRes.value : [];
+      const openMeteoRows = openMeteoRes.status === "fulfilled" ? openMeteoRes.value : [];
+      setParkTypeaheadResults(mergeParkLookupResults(goSkateRows, openMeteoRows).slice(0, 24));
     }, 220);
     return () => window.clearTimeout(timerId);
   }, [parkTypeaheadQuery]);
@@ -2203,11 +2287,13 @@ export default function SkateTrainingPlanApp() {
     setParkLookupLoading(true);
     setParkLookupResults([]);
     try {
-      const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=8&language=en&format=json`;
-      const res = await fetch(url);
-      if (!res.ok) throw new Error("Location search unavailable.");
-      const data = await res.json();
-      const results = normalizeParkLookupResults(data?.results);
+      const [goSkateRes, openMeteoRes] = await Promise.allSettled([
+        fetchGoSkateParkResults(query, 20),
+        fetchOpenMeteoParkResults(query, 12),
+      ]);
+      const goSkateRows = goSkateRes.status === "fulfilled" ? goSkateRes.value : [];
+      const openMeteoRows = openMeteoRes.status === "fulfilled" ? openMeteoRes.value : [];
+      const results = mergeParkLookupResults(goSkateRows, openMeteoRows).slice(0, 40);
       setParkLookupResults(results);
       if (!results.length) toast("No locations found", "Try a broader park or city name.", "warn");
     } catch (err) {
@@ -2232,7 +2318,7 @@ export default function SkateTrainingPlanApp() {
       location,
       lat: Number(item.lat),
       lon: Number(item.lon),
-      notes: "Added from search",
+      notes: item.source === "goskate" ? "Added from GoSkate" : "Added from search",
     };
     setSlice({
       parkProfiles: [next, ...parkProfiles].slice(0, 200),
@@ -2258,7 +2344,7 @@ export default function SkateTrainingPlanApp() {
         location,
         lat: Number(r.lat),
         lon: Number(r.lon),
-        notes: "Added from search",
+        notes: r.source === "goskate" ? "Added from GoSkate" : "Added from search",
       });
     }
     if (!nextBatch.length) {
@@ -2846,7 +2932,8 @@ export default function SkateTrainingPlanApp() {
   };
 
   const freshSkateDayDraft = () => ({
-    title: "Monthly Skate Day",
+    kind: FREE_SKATE_KIND,
+    title: "Free Skate",
     dateISO: todayISO(),
     park: "",
     notes: "",
@@ -2866,9 +2953,12 @@ export default function SkateTrainingPlanApp() {
 
   const addSkateDayEntry = () => {
     if (!activeSkater) return;
+    const kind = skateDayDraft.kind === SKATE_TRIP_KIND ? SKATE_TRIP_KIND : FREE_SKATE_KIND;
+    const defaultTitle = kind === SKATE_TRIP_KIND ? "Skate Trip" : "Free Skate";
     const next = {
       id: `sd-${uid()}`,
-      title: String(skateDayDraft.title || "Monthly Skate Day").trim(),
+      kind,
+      title: String(skateDayDraft.title || defaultTitle).trim(),
       dateISO: String(skateDayDraft.dateISO || todayISO()),
       park: String(skateDayDraft.park || "").trim(),
       notes: String(skateDayDraft.notes || "").trim(),
@@ -2880,7 +2970,7 @@ export default function SkateTrainingPlanApp() {
     };
     setSkateDaysForActiveSkater([next, ...activeSkateDays].slice(0, 200));
     setSkateDayDraft((prev) => ({ ...prev, notes: "" }));
-    toast("Skate day created", `${next.dateISO}${next.park ? ` • ${next.park}` : ""}`, "success");
+    toast(kind === SKATE_TRIP_KIND ? "Skate trip created" : "Free skate created", `${next.dateISO}${next.park ? ` • ${next.park}` : ""}`, "success");
   };
 
   const updateSkateDayEntry = (entryId, patch) => {
@@ -2898,11 +2988,11 @@ export default function SkateTrainingPlanApp() {
   };
 
   const deleteSkateDayEntry = (entryId) => {
-    if (!confirm("Delete this skate day entry?")) return;
+    if (!confirm("Delete this free skate/skate trip entry?")) return;
     const found = activeSkateDays.find((d) => d.id === entryId);
     if (found?.media?.length) for (const m of found.media) if (m?.url) safeRevokeObjectURL(m.url);
     setSkateDaysForActiveSkater(activeSkateDays.filter((d) => d.id !== entryId));
-    toast("Skate day removed", "Entry deleted.", "warn");
+    toast("Entry removed", "Free skate/skate trip deleted.", "warn");
   };
 
   const addSkateDayMediaFromFiles = async (entryId, fileList) => {
@@ -2914,7 +3004,7 @@ export default function SkateTrainingPlanApp() {
       allowedPrefixes: ["image/", "video/"],
     });
     if (!files.length) {
-      toast("No skate day media added", "Files were invalid, too large, or unsupported.", "warn");
+      toast("No entry media added", "Files were invalid, too large, or unsupported.", "warn");
       return;
     }
     const processed = await Promise.all(
@@ -2950,7 +3040,7 @@ export default function SkateTrainingPlanApp() {
       })
     );
     updateSkateDayEntry(entryId, { media: [...(entry.media || []), ...media] });
-    toast("Skate day media added", `${media.length} item(s) uploaded.`, "success");
+    toast("Entry media added", `${media.length} item(s) uploaded.`, "success");
     if (stats.trimmed || stats.tooLarge || stats.wrongType) {
       toast(
         "Some files skipped",
@@ -4624,7 +4714,7 @@ export default function SkateTrainingPlanApp() {
             <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
             <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
             <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} />
-            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Skate Day" lightMode={isLightMode} onClick={() => switchView("skateday")} />
+            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" lightMode={isLightMode} onClick={() => switchView("skateday")} />
             <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
             <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} />
             <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => switchView("chat")} />
@@ -5338,7 +5428,7 @@ export default function SkateTrainingPlanApp() {
                       <CloudSun className="h-4 w-4" /> Park Conditions
                     </div>
                     <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
-                      Search any skate park/city, save it, and check weather before practice.
+                      Search any skate park/city (including GoSkate listings), save it, and check weather before practice.
                     </div>
                   </div>
                   <div className="flex flex-wrap gap-2">
@@ -5378,7 +5468,7 @@ export default function SkateTrainingPlanApp() {
                   <input
                     value={parkLookupQuery}
                     onChange={(e) => setParkLookupQuery(e.target.value)}
-                    placeholder="Find park or city (ex: Harbor City skate park)"
+                    placeholder="Find park or city (GoSkate + maps)"
                     className={isLightMode ? "rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm text-slate-800" : "rounded-xl border border-white/10 bg-black/40 px-3 py-2 text-sm"}
                   />
                   <button
@@ -5407,7 +5497,12 @@ export default function SkateTrainingPlanApp() {
                     <div className="mt-2 grid grid-cols-1 md:grid-cols-2 gap-2">
                       {parkLookupResults.slice(0, 12).map((r, idx) => (
                         <div key={`${r.name}-${idx}`} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                          <div className="text-sm font-semibold">{r.name}</div>
+                          <div className="flex items-center justify-between gap-2">
+                            <div className="text-sm font-semibold">{r.name}</div>
+                            {r.source === "goskate" ? (
+                              <span className={isLightMode ? "text-[10px] rounded-full bg-teal-100 text-teal-800 px-2 py-0.5" : "text-[10px] rounded-full bg-teal-500/20 text-teal-100 px-2 py-0.5"}>GoSkate</span>
+                            ) : null}
+                          </div>
                           <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
                             {[r.admin1, r.country].filter(Boolean).join(", ")}
                           </div>
@@ -5415,13 +5510,24 @@ export default function SkateTrainingPlanApp() {
                             {Number(r.lat).toFixed(4)}, {Number(r.lon).toFixed(4)}
                           </div>
                           <div className="mt-2">
-                            <button
-                              type="button"
-                              onClick={() => addParkFromLookup(r)}
-                              className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
-                            >
-                              Save Park
-                            </button>
+                            <div className="flex items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => addParkFromLookup(r)}
+                                className={isLightMode ? "rounded-lg bg-slate-100 ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-200" : "rounded-lg bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10"}
+                              >
+                                Save Park
+                              </button>
+                              {r.sourceUrl ? (
+                                <button
+                                  type="button"
+                                  onClick={() => window.open(r.sourceUrl, "_blank", "noopener,noreferrer")}
+                                  className={isLightMode ? "rounded-lg bg-white ring-1 ring-slate-300 px-3 py-1.5 text-xs font-semibold hover:bg-slate-50 inline-flex items-center gap-1" : "rounded-lg bg-black/40 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-black/60 inline-flex items-center gap-1"}
+                                >
+                                  <ExternalLink className="h-3 w-3" /> Source
+                                </button>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -5774,21 +5880,44 @@ export default function SkateTrainingPlanApp() {
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs tracking-widest text-white/50">MONTHLY SKATE DAY</div>
-                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || "Skater"} + Coach Day Trips</div>
-                    <div className="mt-2 text-sm text-white/60">Save one day-trip card each month with park details, notes, photos, and videos.</div>
+                    <div className="text-xs tracking-widest text-white/50">FREE SKATE</div>
+                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || "Skater"} Free Skate + Skate Trips</div>
+                    <div className="mt-2 text-sm text-white/60">Track free skate sessions and skate trips with park details, notes, photos, and videos.</div>
                   </div>
-                  <Pill tone="neutral">{activeSkateDays.length} day{activeSkateDays.length === 1 ? "" : "s"}</Pill>
+                  <Pill tone="neutral">{activeSkateDays.length} entry{activeSkateDays.length === 1 ? "" : "ies"}</Pill>
                 </div>
 
                 <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                    <div>
+                      <div className="text-xs text-white/60">Session Type</div>
+                      <select
+                        value={skateDayDraft.kind || FREE_SKATE_KIND}
+                        onChange={(e) => {
+                          const nextKind = e.target.value === SKATE_TRIP_KIND ? SKATE_TRIP_KIND : FREE_SKATE_KIND;
+                          setSkateDayDraft((p) => ({
+                            ...p,
+                            kind: nextKind,
+                            title:
+                              !String(p.title || "").trim() || ["Monthly Skate Day", "Free Skate", "Skate Trip"].includes(String(p.title || "").trim())
+                                ? nextKind === SKATE_TRIP_KIND
+                                  ? "Skate Trip"
+                                  : "Free Skate"
+                                : p.title,
+                          }));
+                        }}
+                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      >
+                        <option value={FREE_SKATE_KIND}>Free Skate</option>
+                        <option value={SKATE_TRIP_KIND}>Skate Trip</option>
+                      </select>
+                    </div>
                     <div>
                       <div className="text-xs text-white/60">Title</div>
                       <input
                         value={skateDayDraft.title}
                         onChange={(e) => setSkateDayDraft((p) => ({ ...p, title: e.target.value }))}
-                        placeholder="Monthly Skate Day"
+                        placeholder="Free Skate Session"
                         className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                       />
                     </div>
@@ -5812,7 +5941,7 @@ export default function SkateTrainingPlanApp() {
                         }}
                         onFocus={(e) => queueParkTypeahead(e.target.value)}
                         list="park-name-list"
-                        placeholder="Harbor / Vans / Road trip park..."
+                        placeholder="Harbor / Vans / Trip park..."
                         className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                       />
                     </div>
@@ -5842,7 +5971,7 @@ export default function SkateTrainingPlanApp() {
                     <textarea
                       value={skateDayDraft.notes}
                       onChange={(e) => setSkateDayDraft((p) => ({ ...p, notes: e.target.value }))}
-                      placeholder="Road trip notes, goals, highlights..."
+                      placeholder="Session/trip notes, goals, highlights..."
                       rows={3}
                       className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                     />
@@ -5854,7 +5983,7 @@ export default function SkateTrainingPlanApp() {
                       onClick={addSkateDayEntry}
                       className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"
                     >
-                      <Plus className="h-4 w-4 inline-block mr-2" /> Create Skate Day Entry
+                      <Plus className="h-4 w-4 inline-block mr-2" /> Create Entry
                     </button>
                   </div>
                 </div>
@@ -5865,7 +5994,10 @@ export default function SkateTrainingPlanApp() {
                       <div key={day.id} className="rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
-                            <div className="text-sm font-bold">{day.title || "Skate Day"}</div>
+                            <div className="flex items-center gap-2">
+                              <div className="text-sm font-bold">{day.title || "Free Skate"}</div>
+                              <Pill tone={day.kind === SKATE_TRIP_KIND ? "warn" : "cyan"}>{day.kind === SKATE_TRIP_KIND ? "Skate Trip" : "Free Skate"}</Pill>
+                            </div>
                             <div className="text-xs text-white/60">
                               {day.dateISO} • {day.park || "Unknown Park"} • Added by {day.createdBy || "Team"}
                             </div>
@@ -5901,14 +6033,14 @@ export default function SkateTrainingPlanApp() {
                         <textarea
                           value={day.notes || ""}
                           onChange={(e) => updateSkateDayEntry(day.id, { notes: e.target.value })}
-                          placeholder="Trip notes..."
+                          placeholder="Session notes..."
                           rows={3}
                           className="mt-3 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                         />
 
                         <div className="mt-3">
                           <label className="cursor-pointer rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 inline-flex items-center gap-2">
-                            <Upload className="h-4 w-4" /> Upload Day Media
+                            <Upload className="h-4 w-4" /> Upload Session Media
                             <input
                               type="file"
                               multiple
@@ -5942,14 +6074,14 @@ export default function SkateTrainingPlanApp() {
                             ))}
                           </div>
                         ) : (
-                          <div className="mt-2 text-xs text-white/60">No media yet for this day.</div>
+                          <div className="mt-2 text-xs text-white/60">No media yet for this entry.</div>
                         )}
                       </div>
                     ))}
                   </div>
                 ) : (
                   <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4 text-sm text-white/70">
-                    No skate day entries yet. Create one for each monthly coach + skater trip.
+                    No free skate entries yet. Add free skate sessions and skate trips here.
                   </div>
                 )}
               </div>
