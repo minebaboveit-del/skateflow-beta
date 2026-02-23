@@ -78,8 +78,8 @@ const DEFAULT_CLOUD_SYNC = {
   projectId: "skaterflow",
   apiKey: "AIzaSyB8vZjXkvtNXojiI1woP6S-K-JFL87PaB0",
   documentPath: "skateflow/sharedState",
-  autoSyncEnabled: false,
-  autoSyncIntervalMin: 3,
+  autoSyncEnabled: true,
+  autoSyncIntervalMin: 1,
   autoPullOnLoad: true,
   lastSyncAt: "",
   lastDirection: "",
@@ -1560,6 +1560,18 @@ export default function SkateTrainingPlanApp() {
   const storeRef = useRef(store);
   const cloudSyncBusyRef = useRef(false);
   const autoSyncBootKeyRef = useRef("");
+  useEffect(() => {
+    const intervalMin = Math.max(1, Number(cloudSync.autoSyncIntervalMin) || 1);
+    if (cloudSync.autoSyncEnabled && cloudSync.autoPullOnLoad !== false && intervalMin === 1) return;
+    setSlice({
+      cloudSync: {
+        ...cloudSync,
+        autoSyncEnabled: true,
+        autoPullOnLoad: true,
+        autoSyncIntervalMin: 1,
+      },
+    });
+  }, [cloudSync.autoSyncEnabled, cloudSync.autoPullOnLoad, cloudSync.autoSyncIntervalMin]);
 
   const setUI = (patch) => setSlice({ ui: { ...ui, ...patch } });
   const setDraft = (patch) => {
@@ -6755,7 +6767,7 @@ export default function SkateTrainingPlanApp() {
                 <div className={`mt-4 ${settingsCardClass}`}>
                   <div className="text-sm font-semibold">Cloud Sync (Firebase Firestore)</div>
                   <div className={settingsMutedTextClass}>
-                    Manual + automatic sync across devices. Auto mode can pull on app open and run every few minutes.
+                    Always-on sync for beta: app auto-pulls on open and syncs every minute across devices.
                   </div>
                   <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-2">
                     <input
@@ -6808,18 +6820,20 @@ export default function SkateTrainingPlanApp() {
                       <input
                         type="checkbox"
                         checked={!!cloudSync.autoSyncEnabled}
+                        disabled
                         onChange={(e) => updateCloudSync({ autoSyncEnabled: e.target.checked })}
                       />
-                      Auto sync
+                      Auto sync (locked on)
                     </label>
                     <label className="inline-flex items-center gap-2 text-sm">
                       <span>Every</span>
                       <input
                         value={cloudSync.autoSyncIntervalMin}
+                        disabled
                         onChange={(e) => updateCloudSync({ autoSyncIntervalMin: clampNum(e.target.value) || 1 })}
                         inputMode="numeric"
                         className={
-                          "w-20 rounded-xl border px-2 py-1 text-sm " +
+                          "w-20 rounded-xl border px-2 py-1 text-sm disabled:opacity-70 " +
                           (isLightMode
                             ? "bg-white border-slate-300 text-slate-900"
                             : "bg-black/40 border-white/10 text-white")
@@ -6831,9 +6845,10 @@ export default function SkateTrainingPlanApp() {
                       <input
                         type="checkbox"
                         checked={cloudSync.autoPullOnLoad !== false}
+                        disabled
                         onChange={(e) => updateCloudSync({ autoPullOnLoad: e.target.checked })}
                       />
-                      Pull on app open
+                      Pull on app open (locked on)
                     </label>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-2 items-center">
