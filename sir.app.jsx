@@ -1399,7 +1399,7 @@ function Pill({ children, tone = "neutral", lightMode = false }) {
   );
 }
 
-function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabKey = "log" }) {
+function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabKey = "log", skaterMode = false }) {
   const toneByTab = {
     log: { light: "bg-cyan-100 text-cyan-900 ring-cyan-300", dark: "bg-cyan-500/20 text-cyan-100 ring-cyan-400/40" },
     cards: { light: "bg-fuchsia-100 text-fuchsia-900 ring-fuchsia-300", dark: "bg-fuchsia-500/20 text-fuchsia-100 ring-fuchsia-400/40" },
@@ -1415,8 +1415,16 @@ function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabK
   };
   const tone = toneByTab[tabKey] || toneByTab.log;
   const activeTone = lightMode ? tone.light : tone.dark;
+  const skaterActiveTone = lightMode
+    ? "bg-gradient-to-r from-cyan-100 via-teal-100 to-sky-100 text-cyan-900 ring-cyan-300"
+    : "bg-gradient-to-r from-cyan-500/25 via-teal-500/20 to-blue-500/25 text-cyan-100 ring-cyan-400/40";
+  const skaterInactiveTone = lightMode
+    ? "bg-white/90 text-slate-700 ring-cyan-200 hover:bg-cyan-50"
+    : "bg-slate-900/75 text-slate-100 ring-cyan-500/25 hover:bg-cyan-500/10";
   const inactiveTone = lightMode ? "bg-white text-slate-700 ring-slate-300 hover:bg-slate-100" : "bg-white/5 text-white ring-white/10 hover:bg-white/10";
-  const className = `flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ring-1 transition shadow-sm ${active ? activeTone : inactiveTone}`;
+  const className = `flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ring-1 transition shadow-sm ${
+    skaterMode ? (active ? skaterActiveTone : skaterInactiveTone) : active ? activeTone : inactiveTone
+  }`;
   return (
     <button type="button" onClick={onClick} className={className}>
       <Icon className="h-4 w-4" />
@@ -4401,9 +4409,38 @@ export default function SkateTrainingPlanApp() {
   const settingsGhostBtnClass = isLightMode
     ? "rounded-2xl bg-slate-100 ring-1 ring-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
     : "rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10";
+  const appShellClass = isSkaterMember
+    ? isLightMode
+      ? "min-h-dvh overflow-x-hidden bg-gradient-to-b from-cyan-50 via-sky-100 to-teal-100 text-slate-900"
+      : "min-h-dvh overflow-x-hidden bg-gradient-to-b from-[#05121a] via-[#072438] to-[#0a1f31] text-white"
+    : isLightMode
+      ? "min-h-dvh overflow-x-hidden bg-slate-100 text-slate-900"
+      : "min-h-dvh overflow-x-hidden bg-gradient-to-b from-black via-slate-950 to-black text-white";
+  const headerShellClass = isSkaterMember
+    ? isLightMode
+      ? "bg-gradient-to-b from-white/95 via-cyan-50/95 to-sky-100/85 border-cyan-300/70"
+      : "bg-gradient-to-b from-cyan-950/95 via-slate-950/95 to-slate-950/80 border-cyan-400/30"
+    : isLightMode
+      ? "bg-gradient-to-b from-white/95 to-slate-100/85 border-slate-300/70"
+      : "bg-gradient-to-b from-black/95 to-black/70 border-white/10";
+  const brandTextClass = isSkaterMember
+    ? isLightMode
+      ? "text-cyan-700"
+      : "text-cyan-200/80"
+    : isLightMode
+      ? "text-slate-500"
+      : "text-white/50";
+  const buildTextClass = isSkaterMember
+    ? isLightMode
+      ? "text-cyan-700/80"
+      : "text-cyan-200/60"
+    : isLightMode
+      ? "text-slate-500"
+      : "text-white/40";
+  const tabThemeProps = { lightMode: isLightMode, skaterMode: isSkaterMember };
 
   return (
-    <div className={isLightMode ? "min-h-dvh overflow-x-hidden bg-slate-100 text-slate-900" : "min-h-dvh overflow-x-hidden bg-gradient-to-b from-black via-slate-950 to-black text-white"}>
+    <div className={appShellClass}>
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((x) => x.id !== id))} />
       <AnimatePresence>
         {xpPop ? (
@@ -4681,13 +4718,13 @@ export default function SkateTrainingPlanApp() {
         <div
           className={
             "sm:sticky sm:top-0 z-30 -mx-4 sm:-mx-6 px-4 sm:px-6 pt-4 pb-3 backdrop-blur border-b " +
-            (isLightMode ? "bg-gradient-to-b from-white/95 to-slate-100/85 border-slate-300/70" : "bg-gradient-to-b from-black/95 to-black/70 border-white/10")
+            headerShellClass
           }
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className={`text-[11px] font-extrabold tracking-[0.28em] ${isLightMode ? "text-slate-500" : "text-white/50"}`}>SKATEFLOW</div>
-              <div className={`mt-0.5 text-[10px] ${isLightMode ? "text-slate-500" : "text-white/40"}`}>Build {BUILD_STAMP}</div>
+              <div className={`text-[11px] font-extrabold tracking-[0.28em] ${brandTextClass}`}>SKATEFLOW</div>
+              <div className={`mt-0.5 text-[10px] ${buildTextClass}`}>Build {BUILD_STAMP}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <div className="text-base sm:text-lg font-bold tracking-tight">Trading Card Athlete System</div>
                 <Pill tone="cyan" lightMode={isLightMode}>
@@ -4770,17 +4807,17 @@ export default function SkateTrainingPlanApp() {
           </div>
 
           <div className={(mobileTabsOpen ? "mt-3 grid grid-cols-4 gap-2" : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-11 sm:gap-2"}>
-            <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" lightMode={isLightMode} onClick={() => switchView("log")} />
-            <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => switchView("cards")} />
-            <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" lightMode={isLightMode} onClick={() => switchView("calendar")} />
-            <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
-            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
-            {!isSkaterMember ? <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} /> : null}
-            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" lightMode={isLightMode} onClick={() => switchView("skateday")} />
-            <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
-            {!isSkaterMember ? <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} /> : null}
-            <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => switchView("chat")} />
-            {!isSkaterMember ? <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => switchView("settings")} /> : null}
+            <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" {...tabThemeProps} onClick={() => switchView("log")} />
+            <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" {...tabThemeProps} onClick={() => switchView("cards")} />
+            <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" {...tabThemeProps} onClick={() => switchView("calendar")} />
+            <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" {...tabThemeProps} onClick={() => switchView("dash")} />
+            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" {...tabThemeProps} onClick={() => switchView("plans")} />
+            {!isSkaterMember ? <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" {...tabThemeProps} onClick={() => switchView("coach")} /> : null}
+            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" {...tabThemeProps} onClick={() => switchView("skateday")} />
+            <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" {...tabThemeProps} onClick={() => switchView("contest")} />
+            {!isSkaterMember ? <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" {...tabThemeProps} onClick={() => switchView("team")} /> : null}
+            <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label="Chat" {...tabThemeProps} onClick={() => switchView("chat")} />
+            {!isSkaterMember ? <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label="Settings" {...tabThemeProps} onClick={() => switchView("settings")} /> : null}
           </div>
         </div>
 
