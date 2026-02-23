@@ -2429,14 +2429,32 @@ export default function SkateTrainingPlanApp() {
       lon: lonRaw ? Number(lonRaw) : null,
     };
 
-    const shouldUpdateDraftPark =
-      String(draft.park || "").trim().toLowerCase() === String(selectedParkProfile.name || "").trim().toLowerCase();
+    const oldName = String(selectedParkProfile.name || "").trim();
+    const oldNameLc = oldName.toLowerCase();
+    const matchesOldParkName = (value) => String(value || "").trim().toLowerCase() === oldNameLc;
+    const shouldUpdateDraftPark = matchesOldParkName(draft.park);
+    const shouldUpdatePracticeDefaultPark = matchesOldParkName(practiceSettings.park);
+    const nextPracticeEvents = practiceEvents.map((ev) =>
+      matchesOldParkName(ev?.park)
+        ? {
+            ...ev,
+            park: nextName,
+          }
+        : ev
+    );
+    const changedPracticeCount = nextPracticeEvents.reduce((count, ev, idx) => (ev === practiceEvents[idx] ? count : count + 1), 0);
 
     setSlice({
       parkProfiles: parkProfiles.map((p) => (p.id === selectedParkProfile.id ? nextPark : p)),
       ...(shouldUpdateDraftPark ? { draft: { ...draft, park: nextName } } : {}),
+      ...(shouldUpdatePracticeDefaultPark ? { practiceSettings: { ...practiceSettings, park: nextName } } : {}),
+      ...(changedPracticeCount ? { practiceEvents: nextPracticeEvents } : {}),
     });
-    toast("Park updated", `${nextPark.name}${nextPark.location ? ` • ${nextPark.location}` : ""}`, "success");
+    toast(
+      "Park updated",
+      `${nextPark.name}${nextPark.location ? ` • ${nextPark.location}` : ""}${changedPracticeCount ? ` • ${changedPracticeCount} practice(s) updated` : ""}`,
+      "success"
+    );
   };
 
   useEffect(() => {
@@ -5487,12 +5505,15 @@ export default function SkateTrainingPlanApp() {
                       type="button"
                       onClick={() => {
                         if (!selectedParkProfile?.name) return;
-                        setDraft({ park: selectedParkProfile.name });
-                        toast("Park set for session", `${selectedParkProfile.name} added to today’s draft.`, "success");
+                        setSlice({
+                          draft: { ...draft, park: selectedParkProfile.name },
+                          practiceSettings: { ...practiceSettings, park: selectedParkProfile.name },
+                        });
+                        toast("Park set for practice", `${selectedParkProfile.name} set for today’s practice.`, "success");
                       }}
                       className="rounded-xl bg-white text-black px-3 py-2 text-xs font-extrabold hover:bg-white/90 inline-flex items-center gap-2"
                     >
-                      <MapPin className="h-3.5 w-3.5" /> Use For Session
+                      <MapPin className="h-3.5 w-3.5" /> Use For Practice
                     </button>
                   </div>
                 </div>
