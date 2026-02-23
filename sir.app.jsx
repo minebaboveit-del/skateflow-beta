@@ -2164,14 +2164,13 @@ export default function SkateTrainingPlanApp() {
       const lon = Number(park.lon);
       const url =
         `https://api.open-meteo.com/v1/forecast?latitude=${encodeURIComponent(lat)}&longitude=${encodeURIComponent(lon)}` +
-        "&current=temperature_2m,weather_code,wind_speed_10m,precipitation" +
         "&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max" +
         "&temperature_unit=fahrenheit&wind_speed_unit=mph&precipitation_unit=inch&timezone=auto";
       const res = await fetch(url);
       if (!res.ok) throw new Error("Weather service unavailable.");
       const data = await res.json();
       const dailyDates = toArray(data?.daily?.time);
-      const daily = dailyDates.slice(0, 4).map((dateISO, idx) => ({
+      const daily = dailyDates.slice(0, 5).map((dateISO, idx) => ({
         dateISO: String(dateISO || ""),
         code: Number(data?.daily?.weather_code?.[idx] ?? 0),
         maxF: Math.round(Number(data?.daily?.temperature_2m_max?.[idx] ?? 0)),
@@ -2181,12 +2180,7 @@ export default function SkateTrainingPlanApp() {
       setWeatherState({
         loading: false,
         error: "",
-        current: {
-          tempF: Math.round(Number(data?.current?.temperature_2m ?? 0)),
-          windMph: Math.round(Number(data?.current?.wind_speed_10m ?? 0)),
-          precipIn: Number(data?.current?.precipitation ?? 0),
-          code: Number(data?.current?.weather_code ?? 0),
-        },
+        current: null,
         daily,
         fetchedAt: new Date().toISOString(),
         parkName: park.name,
@@ -3987,9 +3981,23 @@ export default function SkateTrainingPlanApp() {
     return progressCards.filter((c) => c.type === binderFilter);
   }, [progressCards, binderFilter]);
 
+  const activeSkaterSessions = useMemo(
+    () => sessions.filter((s) => s.skaterId === ui.activeSkaterId),
+    [sessions, ui.activeSkaterId]
+  );
+
+  const uniqueParkCount = useMemo(() => {
+    const unique = new Set(
+      activeSkaterSessions
+        .map((s) => String(s.park || "").trim())
+        .filter(Boolean)
+        .map((name) => name.toLowerCase())
+    );
+    return unique.size;
+  }, [activeSkaterSessions]);
+
   const chartData = useMemo(() => {
-    const filtered = sessions
-      .filter((s) => s.skaterId === ui.activeSkaterId)
+    const filtered = activeSkaterSessions
       .slice()
       .sort((a, b) => (a.date > b.date ? 1 : -1))
       .slice(-14);
@@ -3997,13 +4005,13 @@ export default function SkateTrainingPlanApp() {
       date: formatShortDate(s.date),
       pct: pct(s.totalCompleted || 0, s.totalTarget || 1),
       ovr: computeOVR(s),
+      park: String(s.park || "").trim() || "Unknown Park",
     }));
-  }, [sessions, ui.activeSkaterId]);
+  }, [activeSkaterSessions]);
 
   const dayTypeBars = useMemo(() => {
-    const filtered = sessions.filter((s) => s.skaterId === ui.activeSkaterId);
     const map = new Map();
-    for (const s of filtered) {
+    for (const s of activeSkaterSessions) {
       const p = pct(s.totalCompleted || 0, s.totalTarget || 1);
       const cur = map.get(s.dayType) || { dayType: s.dayType, sessions: 0, avg: 0 };
       cur.sessions += 1;
@@ -4011,7 +4019,23 @@ export default function SkateTrainingPlanApp() {
       map.set(s.dayType, cur);
     }
     return [...map.values()].map((x) => ({ ...x, avg: x.sessions ? Math.round(x.avg / x.sessions) : 0 }));
-  }, [sessions, ui.activeSkaterId]);
+  }, [activeSkaterSessions]);
+
+  const parkBars = useMemo(() => {
+    const map = new Map();
+    for (const s of activeSkaterSessions) {
+      const park = String(s.park || "").trim() || "Unknown Park";
+      const p = pct(s.totalCompleted || 0, s.totalTarget || 1);
+      const cur = map.get(park) || { park, sessions: 0, avg: 0 };
+      cur.sessions += 1;
+      cur.avg += p;
+      map.set(park, cur);
+    }
+    return [...map.values()]
+      .map((x) => ({ ...x, avg: x.sessions ? Math.round(x.avg / x.sessions) : 0 }))
+      .sort((a, b) => b.sessions - a.sessions)
+      .slice(0, 8);
+  }, [activeSkaterSessions]);
 
   const uploadMemberPhoto = async (member, file) => {
     if (!file || !file.type.startsWith("image/")) {
@@ -5293,17 +5317,18 @@ export default function SkateTrainingPlanApp() {
                 <div className="mt-1 text-xl font-extrabold">Stats & Charts</div>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-4 gap-3">
                 <Stat label="Current Streak" value={`${topStreak} sessions`} tone={topStreak >= 3 ? "good" : "neutral"} />
                 <Stat
                   label="Career High OVR"
                   value={(() => {
-                    const max = Math.max(0, ...sessions.filter((s) => s.skaterId === ui.activeSkaterId).map((s) => computeOVR(s)));
+                    const max = Math.max(0, ...activeSkaterSessions.map((s) => computeOVR(s)));
                     return max ? `${max} OVR` : "—";
                   })()}
                   tone="gold"
                 />
-                <Stat label="Total Sessions" value={`${sessions.filter((s) => s.skaterId === ui.activeSkaterId).length}`} tone="cyan" />
+                <Stat label="Total Sessions" value={`${activeSkaterSessions.length}`} tone="cyan" />
+                <Stat label="Parks Skated" value={`${uniqueParkCount}`} tone={uniqueParkCount >= 3 ? "good" : "neutral"} />
               </div>
 
               <div className={`mt-4 rounded-3xl p-4 ${isLightMode ? "bg-white ring-1 ring-slate-300" : "bg-white/5 ring-1 ring-white/10"}`}>
@@ -5468,43 +5493,25 @@ export default function SkateTrainingPlanApp() {
                     <div className={`text-sm ${isLightMode ? "text-slate-600" : "text-white/70"}`}>Loading weather...</div>
                   ) : weatherState.error ? (
                     <div className={`text-sm ${isLightMode ? "text-rose-700" : "text-rose-200"}`}>{weatherState.error}</div>
-                  ) : weatherState.current ? (
+                  ) : weatherState.daily?.length ? (
                     <div className="space-y-3">
                       <div className={`text-xs ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
-                        {weatherState.parkName || selectedParkProfile?.name || "Selected park"} • {weatherCodeLabel(weatherState.current.code)} • Updated{" "}
+                        {weatherState.parkName || selectedParkProfile?.name || "Selected park"} • Updated{" "}
                         {weatherState.fetchedAt ? new Date(weatherState.fetchedAt).toLocaleTimeString() : "now"}
                       </div>
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                        <div className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                          <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>Temp</div>
-                          <div className="text-lg font-extrabold">{weatherState.current.tempF}F</div>
-                        </div>
-                        <div className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                          <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>Wind</div>
-                          <div className="text-lg font-extrabold">{weatherState.current.windMph} mph</div>
-                        </div>
-                        <div className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                          <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>Precip</div>
-                          <div className="text-lg font-extrabold">{weatherState.current.precipIn.toFixed(2)} in</div>
-                        </div>
-                        <div className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                          <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>Condition</div>
-                          <div className="text-sm font-bold">{weatherCodeLabel(weatherState.current.code)}</div>
-                        </div>
-                      </div>
-                      {weatherState.daily?.length ? (
-                        <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                          {weatherState.daily.map((d) => (
-                            <div key={d.dateISO} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                              <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>{formatShortDate(d.dateISO)}</div>
-                              <div className="mt-1 text-sm font-bold">{weatherCodeLabel(d.code)}</div>
-                              <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/70"}`}>
-                                {d.maxF}F / {d.minF}F • Rain {d.rainPct}%
-                              </div>
+                      <div className={`text-xs ${isLightMode ? "text-slate-600" : "text-white/60"}`}>Daily forecast (today + next 4 days)</div>
+                      <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
+                        {weatherState.daily.slice(0, 5).map((d, idx) => (
+                          <div key={d.dateISO} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
+                            <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>{idx === 0 ? "Today" : formatShortDate(d.dateISO)}</div>
+                            <div className="mt-1 text-sm font-bold">{weatherCodeLabel(d.code)}</div>
+                            <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/70"}`}>
+                              {d.maxF}F / {d.minF}F
                             </div>
-                          ))}
-                        </div>
-                      ) : null}
+                            <div className={`text-[11px] mt-1 ${isLightMode ? "text-slate-500" : "text-white/60"}`}>Rain {d.rainPct}%</div>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ) : (
                     <div className={`text-sm ${isLightMode ? "text-slate-600" : "text-white/70"}`}>Pick a park to load weather.</div>
@@ -5512,7 +5519,7 @@ export default function SkateTrainingPlanApp() {
                 </div>
               </div>
 
-              <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
+              <div className="mt-4 grid grid-cols-1 lg:grid-cols-3 gap-3">
                 <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
                   <div className="text-sm font-semibold">Completion % (last sessions)</div>
                   <div className="mt-3 h-64">
@@ -5542,6 +5549,26 @@ export default function SkateTrainingPlanApp() {
                     </ResponsiveContainer>
                   </div>
                   <div className="mt-2 text-xs text-white/60">Hover bars to see the day type.</div>
+                </div>
+
+                <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="text-sm font-semibold">Sessions by Park</div>
+                  <div className="mt-3 h-64">
+                    {parkBars.length ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={parkBars}>
+                          <CartesianGrid strokeDasharray="3 3" />
+                          <XAxis dataKey="park" hide />
+                          <YAxis allowDecimals={false} />
+                          <Tooltip />
+                          <Bar dataKey="sessions" />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className={`h-full flex items-center justify-center text-sm ${isLightMode ? "text-slate-600" : "text-white/60"}`}>No park data yet.</div>
+                    )}
+                  </div>
+                  <div className="mt-2 text-xs text-white/60">Top parks by session count for this skater.</div>
                 </div>
               </div>
 
