@@ -118,6 +118,7 @@ const INITIAL_STORE = {
 };
 
 const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "settings"]);
+const MEDIA_DAY_LABEL = "Media Day";
 const MAX_UPLOAD_COUNT = 24;
 const MAX_MEDIA_FILE_BYTES = 80 * 1024 * 1024;
 const MAX_IMAGE_FILE_BYTES = 25 * 1024 * 1024;
@@ -696,6 +697,26 @@ function weatherCodeLabel(code) {
   if ([71, 73, 75, 77, 85, 86].includes(c)) return "Snow";
   if ([95, 96, 99].includes(c)) return "Thunderstorm";
   return "Mixed";
+}
+
+function normalizeParkLookupResults(rawResults) {
+  const rows = toArray(rawResults)
+    .map((r) => ({
+      name: String(r?.name || "").trim(),
+      admin1: String(r?.admin1 || "").trim(),
+      country: String(r?.country || "").trim(),
+      lat: Number(r?.latitude),
+      lon: Number(r?.longitude),
+    }))
+    .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lon));
+  const seen = new Set();
+  return rows.filter((r) => {
+    const location = [r.admin1, r.country].filter(Boolean).join(", ");
+    const key = parkIdentityKey(r.name, location);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function getISOWeekKey(dateISO) {
@@ -1587,6 +1608,7 @@ export default function SkateTrainingPlanApp() {
   }, [nextPracticeEvent, calendarNowMs]);
 
   const tasks = useMemo(() => plans[draft.dayType] || [], [plans, draft.dayType]);
+  const isMediaDayDraft = draft.dayType === MEDIA_DAY_LABEL;
   const totalTarget = useMemo(() => tasks.reduce((sum, t) => sum + (Number(t.target) || 0), 0), [tasks]);
   const totalCompleted = useMemo(
     () => tasks.reduce((sum, t) => sum + (Number(draft.completedByTaskId?.[t.id]) || 0), 0),
@@ -2053,6 +2075,9 @@ export default function SkateTrainingPlanApp() {
   const [parkLookupQuery, setParkLookupQuery] = useState("");
   const [parkLookupLoading, setParkLookupLoading] = useState(false);
   const [parkLookupResults, setParkLookupResults] = useState([]);
+  const [parkTypeaheadQuery, setParkTypeaheadQuery] = useState("");
+  const [parkTypeaheadResults, setParkTypeaheadResults] = useState([]);
+  const parkTypeaheadReqRef = useRef(0);
   const [parkDraft, setParkDraft] = useState({
     name: "",
     location: "",
@@ -2068,6 +2093,51 @@ export default function SkateTrainingPlanApp() {
     fetchedAt: "",
     parkName: "",
   });
+
+  const queueParkTypeahead = (value) => {
+    setParkTypeaheadQuery(String(value || "").trim());
+  };
+
+  useEffect(() => {
+    const query = String(parkTypeaheadQuery || "").trim();
+    if (query.length < 2) {
+      setParkTypeaheadResults([]);
+      return undefined;
+    }
+    const reqId = parkTypeaheadReqRef.current + 1;
+    parkTypeaheadReqRef.current = reqId;
+    const timerId = window.setTimeout(async () => {
+      try {
+        const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=12&language=en&format=json`;
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Location lookup unavailable.");
+        const data = await res.json();
+        if (parkTypeaheadReqRef.current !== reqId) return;
+        setParkTypeaheadResults(normalizeParkLookupResults(data?.results));
+      } catch {
+        if (parkTypeaheadReqRef.current !== reqId) return;
+        setParkTypeaheadResults([]);
+      }
+    }, 220);
+    return () => window.clearTimeout(timerId);
+  }, [parkTypeaheadQuery]);
+
+  const parkAutocompleteOptions = useMemo(() => {
+    const out = [];
+    const seen = new Set();
+    const addOption = (name, location = "") => {
+      const n = String(name || "").trim();
+      if (!n) return;
+      const loc = String(location || "").trim();
+      const key = `${n.toLowerCase()}|${loc.toLowerCase()}`;
+      if (seen.has(key)) return;
+      seen.add(key);
+      out.push({ name: n, location: loc });
+    };
+    for (const p of parkProfiles) addOption(p?.name, p?.location);
+    for (const r of parkTypeaheadResults) addOption(r?.name, [r?.admin1, r?.country].filter(Boolean).join(", "));
+    return out.slice(0, 80);
+  }, [parkProfiles, parkTypeaheadResults]);
 
   const selectParkForActiveSkater = (parkId) =>
     setSlice({ parkPrefsBySkaterId: { ...parkPrefsBySkaterId, [ui.activeSkaterId]: parkId } });
@@ -2143,23 +2213,7 @@ export default function SkateTrainingPlanApp() {
       const res = await fetch(url);
       if (!res.ok) throw new Error("Location search unavailable.");
       const data = await res.json();
-      const rawResults = toArray(data?.results)
-        .map((r) => ({
-          name: String(r?.name || "").trim(),
-          admin1: String(r?.admin1 || "").trim(),
-          country: String(r?.country || "").trim(),
-          lat: Number(r?.latitude),
-          lon: Number(r?.longitude),
-        }))
-        .filter((r) => r.name && Number.isFinite(r.lat) && Number.isFinite(r.lon));
-      const seen = new Set();
-      const results = rawResults.filter((r) => {
-        const location = [r.admin1, r.country].filter(Boolean).join(", ");
-        const key = parkIdentityKey(r.name, location);
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      });
+      const results = normalizeParkLookupResults(data?.results);
       setParkLookupResults(results);
       if (!results.length) toast("No locations found", "Try a broader park or city name.", "warn");
     } catch (err) {
@@ -2997,12 +3051,13 @@ export default function SkateTrainingPlanApp() {
       `View: ${String(ui2.view || "(missing)")}`
     );
 
-    const draftDayExists = !!plans2[String(draft2.dayType || "")];
+    const draftDayValue = String(draft2.dayType || "");
+    const draftDayExists = draftDayValue === MEDIA_DAY_LABEL || !!plans2[draftDayValue];
     addCheck(
       "draft_day_type",
-      "Draft day type exists in plans",
+      "Draft day type exists in plans/media day",
       draftDayExists ? "pass" : "warn",
-      draftDayExists ? String(draft2.dayType || "") : `Missing day type: ${String(draft2.dayType || "(empty)")}`
+      draftDayExists ? draftDayValue : `Missing day type: ${String(draft2.dayType || "(empty)")}`
     );
 
     let sessionMissingSkater = 0;
@@ -3195,6 +3250,10 @@ export default function SkateTrainingPlanApp() {
 
   const saveSession = () => {
     if (!activeSkater) return;
+    if (isMediaDayDraft && !draftMedia.length) {
+      toast("Add media first", "Media Day cards need at least one photo or video.", "warn");
+      return;
+    }
 
     const taskRecords = tasks.map((t) => ({
       taskId: t.id,
@@ -3286,8 +3345,8 @@ export default function SkateTrainingPlanApp() {
       toast("XP MILESTONE!", `Hit ${nextMilestone * milestoneStep} XP • +${gainedXP} XP`, "success");
     } else {
       toast(
-        "New practice saved",
-        `${activeSkater.name} • ${draft.dayType} • ${pct2}%${freePlayEarned ? " • Free play earned" : ""} • +${gainedXP} XP`,
+        isMediaDayDraft ? "New media day card saved" : "New practice saved",
+        `${activeSkater.name} • ${draft.dayType}${isMediaDayDraft ? "" : ` • ${pct2}%${freePlayEarned ? " • Free play earned" : ""}`} • +${gainedXP} XP`,
         "success"
       );
     }
@@ -4234,7 +4293,13 @@ export default function SkateTrainingPlanApp() {
             <div className="text-xs text-white/60">Park</div>
             <input
               value={sessionEdit.park}
-              onChange={(e) => setSessionEdit((prev) => ({ ...prev, park: e.target.value }))}
+              onChange={(e) => {
+                const nextPark = e.target.value;
+                setSessionEdit((prev) => ({ ...prev, park: nextPark }));
+                queueParkTypeahead(nextPark);
+              }}
+              onFocus={(e) => queueParkTypeahead(e.target.value)}
+              list="park-name-list"
               className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
               placeholder="Harbor / Vans / Street spot"
             />
@@ -4588,11 +4653,23 @@ export default function SkateTrainingPlanApp() {
                           {k}
                         </option>
                       ))}
+                      <option value={MEDIA_DAY_LABEL}>{MEDIA_DAY_LABEL}</option>
                     </select>
                   </div>
                   <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                     <div className="text-xs text-white/60">Park</div>
-                    <input value={draft.park} onChange={(e) => setDraft({ park: e.target.value })} placeholder="Harbor / Channel / Vans…" className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2" />
+                    <input
+                      value={draft.park}
+                      onChange={(e) => {
+                        const nextPark = e.target.value;
+                        setDraft({ park: nextPark });
+                        queueParkTypeahead(nextPark);
+                      }}
+                      onFocus={(e) => queueParkTypeahead(e.target.value)}
+                      list="park-name-list"
+                      placeholder="Harbor / Channel / Vans..."
+                      className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
+                    />
                   </div>
                 </div>
 
@@ -4604,7 +4681,9 @@ export default function SkateTrainingPlanApp() {
                   <div className="mt-3 h-3 rounded-full bg-white/10 overflow-hidden ring-1 ring-white/10">
                     <div className="h-full bg-gradient-to-r from-cyan-400 to-emerald-300" style={{ width: `${completionPct}%` }} />
                   </div>
-                  <div className="mt-2 text-xs text-white/60">Total reps: {totalCompleted} / {totalTarget} • Missed: {totalMissed}</div>
+                  <div className="mt-2 text-xs text-white/60">
+                    {isMediaDayDraft ? "Media Day: upload photos/videos and save a trading card without practice reps." : `Total reps: ${totalCompleted} / ${totalTarget} • Missed: ${totalMissed}`}
+                  </div>
                 </div>
 
                 <div className="mt-4 space-y-2">
@@ -4669,6 +4748,11 @@ export default function SkateTrainingPlanApp() {
                       </div>
                     );
                   })}
+                  {isMediaDayDraft ? (
+                    <div className="rounded-2xl bg-cyan-500/10 ring-1 ring-cyan-400/30 p-4 text-sm text-cyan-100">
+                      Non-practice mode is on. Add media below and tap <span className="font-bold">Save Session Card</span> to create a trading card.
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-5 rounded-3xl bg-white/5 ring-1 ring-white/10 p-4">
@@ -4963,18 +5047,16 @@ export default function SkateTrainingPlanApp() {
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Skate Park</div>
                       <input
                         value={practiceSettings.park || ""}
-                        onChange={(e) => setSlice({ practiceSettings: { ...practiceSettings, park: e.target.value } })}
-                        list="calendar-park-list"
+                        onChange={(e) => {
+                          const nextPark = e.target.value;
+                          setSlice({ practiceSettings: { ...practiceSettings, park: nextPark } });
+                          queueParkTypeahead(nextPark);
+                        }}
+                        onFocus={(e) => queueParkTypeahead(e.target.value)}
+                        list="park-name-list"
                         placeholder="Harbor City Skate Park"
                         className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
                       />
-                      <datalist id="calendar-park-list">
-                        {parkProfiles.map((p) => (
-                          <option key={p.id} value={p.name}>
-                            {p.location || ""}
-                          </option>
-                        ))}
-                      </datalist>
                       {selectedParkProfile ? (
                         <button
                           type="button"
@@ -5137,7 +5219,13 @@ export default function SkateTrainingPlanApp() {
                                 <div className={isLightMode ? "text-[11px] text-slate-500" : "text-[11px] text-white/50"}>Park</div>
                                 <input
                                   value={practiceEditDraft.park}
-                                  onChange={(e) => setPracticeEditDraft((p) => ({ ...p, park: e.target.value }))}
+                                  onChange={(e) => {
+                                    const nextPark = e.target.value;
+                                    setPracticeEditDraft((p) => ({ ...p, park: nextPark }));
+                                    queueParkTypeahead(nextPark);
+                                  }}
+                                  onFocus={(e) => queueParkTypeahead(e.target.value)}
+                                  list="park-name-list"
                                   className={isLightMode ? "mt-1 w-full rounded-lg bg-white border border-slate-300 px-2 py-1.5 text-sm" : "mt-1 w-full rounded-lg bg-black/40 border border-white/10 px-2 py-1.5 text-sm"}
                                 />
                               </div>
@@ -5690,7 +5778,13 @@ export default function SkateTrainingPlanApp() {
                       <div className="text-xs text-white/60">Skate Park</div>
                       <input
                         value={skateDayDraft.park}
-                        onChange={(e) => setSkateDayDraft((p) => ({ ...p, park: e.target.value }))}
+                        onChange={(e) => {
+                          const nextPark = e.target.value;
+                          setSkateDayDraft((p) => ({ ...p, park: nextPark }));
+                          queueParkTypeahead(nextPark);
+                        }}
+                        onFocus={(e) => queueParkTypeahead(e.target.value)}
+                        list="park-name-list"
                         placeholder="Harbor / Vans / Road trip park..."
                         className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                       />
@@ -6633,6 +6727,14 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
         </AnimatePresence>
+
+        <datalist id="park-name-list">
+          {parkAutocompleteOptions.map((p) => (
+            <option key={`${p.name}|${p.location}`} value={p.name}>
+              {p.location || ""}
+            </option>
+          ))}
+        </datalist>
 
         <div className="mt-6 text-xs text-white/40">Local-first build. For real sharing across devices: add Firebase (Auth + Firestore + Storage).</div>
       </div>
