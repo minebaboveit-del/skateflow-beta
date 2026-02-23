@@ -1626,13 +1626,13 @@ export default function SkateTrainingPlanApp() {
   const activeSkater = useMemo(() => skaters.find((s) => s.id === ui.activeSkaterId) || skaters[0], [skaters, ui.activeSkaterId]);
 
   const isSkaterMember = activeMember?.role === "skater";
-  const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach";
+  const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach" || activeMember?.role === "skater";
   const canComment = !!activeMember;
   const canManageTeam = activeMember?.role === "owner";
   const roleAllowedViews = useMemo(
     () =>
       isSkaterMember
-        ? new Set(["log", "cards", "calendar", "dash", "skateday", "contest", "chat"])
+        ? new Set(["log", "cards", "calendar", "dash", "plans", "skateday", "contest", "chat"])
         : VALID_VIEWS,
     [isSkaterMember]
   );
@@ -4774,7 +4774,7 @@ export default function SkateTrainingPlanApp() {
             <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => switchView("cards")} />
             <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" lightMode={isLightMode} onClick={() => switchView("calendar")} />
             <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
-            {!isSkaterMember ? <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} /> : null}
+            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
             {!isSkaterMember ? <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} /> : null}
             <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" lightMode={isLightMode} onClick={() => switchView("skateday")} />
             <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
@@ -5774,14 +5774,14 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "plans" && !isSkaterMember ? (
+          {ui.view === "plans" ? (
             <motion.div key="plans" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">PROGRAM</div>
                     <div className="mt-1 text-xl font-extrabold">Training Plans</div>
-                    <div className="mt-2 text-sm text-white/60">Owner + Coach can edit. Dad + Skater can view/log.</div>
+                    <div className="mt-2 text-sm text-white/60">Owner + Coach + Skater can edit. Dad can view/log.</div>
                   </div>
                   {canEditPlans ? (
                     <button type="button" onClick={addDayType} className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90">
