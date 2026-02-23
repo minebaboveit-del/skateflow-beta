@@ -89,11 +89,20 @@ function createDefaultBetaCheck() {
   return { checkedById: {}, notesById: {}, updatedAt: "" };
 }
 
+const MEMBER_ROLES = new Set(["owner", "coach", "dad", "skater"]);
+
+function normalizeMemberRole(value, fallback = "dad") {
+  const role = String(value || "").trim().toLowerCase();
+  if (MEMBER_ROLES.has(role)) return role;
+  return MEMBER_ROLES.has(String(fallback || "").trim().toLowerCase()) ? String(fallback || "").trim().toLowerCase() : "dad";
+}
+
 const INITIAL_STORE = {
   members: [
     { id: "m-1", name: "Myisha", role: "owner", pin: "", photoUrl: "", biometricCredentialId: "" },
     { id: "m-2", name: "Coach", role: "coach", pin: "", photoUrl: "", biometricCredentialId: "" },
     { id: "m-3", name: "Dad", role: "dad", pin: "", photoUrl: "", biometricCredentialId: "" },
+    { id: "m-4", name: "Conner", role: "skater", pin: "", photoUrl: "", biometricCredentialId: "" },
   ],
   skaters: [{ id: "s-1", name: "Conner", photoUrl: "" }],
   plans: DEFAULT_PLANS,
@@ -132,7 +141,7 @@ const GOSKATE_LISTING_API = "https://goskate.com/sp/wp-json/wp/v2/listing";
 const GOSKATE_LISTING_FIELDS = "id,link,title.rendered,property_meta.REAL_HOMES_property_location,property_meta.REAL_HOMES_property_address,modified";
 
 const BETA_CHECK_ITEMS = [
-  { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad." },
+  { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad/skater." },
   { id: "log_session", label: "Log and save session", detail: "Session saves with reps and scores." },
   { id: "media_upload", label: "Media upload", detail: "Photo/video upload works in Log and Cards." },
   { id: "media_trim", label: "Video trim/edit", detail: "Trim tool saves updated clip." },
@@ -379,16 +388,6 @@ function guardUploadFiles(fileList, opts = {}) {
 function normalizeStoreShape(raw) {
   const src = toObj(raw, {});
   const plans = toObj(src.plans, DEFAULT_PLANS);
-  const members = toArray(src.members)
-    .map((m) => ({
-      id: String(m?.id || `m-${uid()}`),
-      name: String(m?.name || "Member"),
-      role: String(m?.role || "dad"),
-      pin: sanitizePin(m?.pin || ""),
-      photoUrl: String(m?.photoUrl || ""),
-      biometricCredentialId: String(m?.biometricCredentialId || ""),
-    }))
-    .filter((m) => m.id);
   const skaters = toArray(src.skaters)
     .map((s) => ({
       id: String(s?.id || `s-${uid()}`),
@@ -396,6 +395,34 @@ function normalizeStoreShape(raw) {
       photoUrl: String(s?.photoUrl || ""),
     }))
     .filter((s) => s.id);
+  const membersBase = toArray(src.members)
+    .map((m) => ({
+      id: String(m?.id || `m-${uid()}`),
+      name: String(m?.name || "Member"),
+      role: normalizeMemberRole(m?.role, "dad"),
+      pin: sanitizePin(m?.pin || ""),
+      photoUrl: String(m?.photoUrl || ""),
+      biometricCredentialId: String(m?.biometricCredentialId || ""),
+    }))
+    .filter((m) => m.id);
+  const hasSkaterMember = membersBase.some((m) => m.role === "skater");
+  const firstSkater = skaters[0] || { id: "s-1", name: "Skater" };
+  const desiredSkaterMemberId = `m-skater-${firstSkater.id}`;
+  const skaterMemberExistsById = membersBase.some((m) => m.id === desiredSkaterMemberId);
+  const members =
+    !membersBase.length || hasSkaterMember || !firstSkater?.id
+      ? membersBase
+      : [
+          ...membersBase,
+          {
+            id: skaterMemberExistsById ? `m-${uid()}` : desiredSkaterMemberId,
+            name: String(firstSkater?.name || "Skater"),
+            role: "skater",
+            pin: "",
+            photoUrl: "",
+            biometricCredentialId: "",
+          },
+        ];
 
   const sessions = toArray(src.sessions).map((s) => {
     const tasks = toArray(s?.tasks).map((t) => ({
@@ -1598,9 +1625,17 @@ export default function SkateTrainingPlanApp() {
   const activeMember = useMemo(() => members.find((m) => m.id === ui.activeMemberId) || members[0], [members, ui.activeMemberId]);
   const activeSkater = useMemo(() => skaters.find((s) => s.id === ui.activeSkaterId) || skaters[0], [skaters, ui.activeSkaterId]);
 
+  const isSkaterMember = activeMember?.role === "skater";
   const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach";
-  const canComment = activeMember?.role === "owner" || activeMember?.role === "coach";
+  const canComment = !!activeMember;
   const canManageTeam = activeMember?.role === "owner";
+  const roleAllowedViews = useMemo(
+    () =>
+      isSkaterMember
+        ? new Set(["log", "cards", "calendar", "dash", "skateday", "contest", "chat"])
+        : VALID_VIEWS,
+    [isSkaterMember]
+  );
   const [calendarMonthKey, setCalendarMonthKey] = useState(() => monthKeyFromDate(new Date()));
   const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now());
   const reminderFiredRef = useRef(new Set());
@@ -1624,6 +1659,11 @@ export default function SkateTrainingPlanApp() {
   useEffect(() => {
     setEditingPracticeId("");
   }, [ui.activeSkaterId, ui.view]);
+
+  useEffect(() => {
+    if (roleAllowedViews.has(ui.view)) return;
+    setUI({ view: "log" });
+  }, [roleAllowedViews, ui.view]);
 
   const activePracticeEvents = useMemo(() => {
     const list = toArray(practiceEvents)
@@ -4646,6 +4686,10 @@ export default function SkateTrainingPlanApp() {
                   <Pill tone="warn" lightMode={isLightMode}>
                     <Crown className="h-3.5 w-3.5" /> Coach
                   </Pill>
+                ) : activeMember?.role === "skater" ? (
+                  <Pill tone="cyan" lightMode={isLightMode}>
+                    <Users className="h-3.5 w-3.5" /> Skater
+                  </Pill>
                 ) : (
                   <Pill tone="neutral" lightMode={isLightMode}>
                     <Users className="h-3.5 w-3.5" /> Dad
@@ -4712,13 +4756,13 @@ export default function SkateTrainingPlanApp() {
             <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" lightMode={isLightMode} onClick={() => switchView("cards")} />
             <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" lightMode={isLightMode} onClick={() => switchView("calendar")} />
             <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" lightMode={isLightMode} onClick={() => switchView("dash")} />
-            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} />
-            <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} />
+            {!isSkaterMember ? <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" lightMode={isLightMode} onClick={() => switchView("plans")} /> : null}
+            {!isSkaterMember ? <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" lightMode={isLightMode} onClick={() => switchView("coach")} /> : null}
             <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" lightMode={isLightMode} onClick={() => switchView("skateday")} />
             <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" lightMode={isLightMode} onClick={() => switchView("contest")} />
-            <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} />
+            {!isSkaterMember ? <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" lightMode={isLightMode} onClick={() => switchView("team")} /> : null}
             <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label="Chat" lightMode={isLightMode} onClick={() => switchView("chat")} />
-            <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => switchView("settings")} />
+            {!isSkaterMember ? <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label="Settings" lightMode={isLightMode} onClick={() => switchView("settings")} /> : null}
           </div>
         </div>
 
@@ -5709,14 +5753,14 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "plans" ? (
+          {ui.view === "plans" && !isSkaterMember ? (
             <motion.div key="plans" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">PROGRAM</div>
                     <div className="mt-1 text-xl font-extrabold">Training Plans</div>
-                    <div className="mt-2 text-sm text-white/60">Owner + Coach can edit. Dad can view/log.</div>
+                    <div className="mt-2 text-sm text-white/60">Owner + Coach can edit. Dad + Skater can view/log.</div>
                   </div>
                   {canEditPlans ? (
                     <button type="button" onClick={addDayType} className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90">
@@ -5784,7 +5828,7 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "coach" ? (
+          {ui.view === "coach" && !isSkaterMember ? (
             <motion.div key="coach" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
@@ -6346,7 +6390,7 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "team" ? (
+          {ui.view === "team" && !isSkaterMember ? (
             <motion.div key="team" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
@@ -6369,13 +6413,13 @@ export default function SkateTrainingPlanApp() {
                         onClick={() => {
                           const name = prompt("Member name:");
                           if (!name) return;
-                          const role = (prompt("Role (owner/coach/dad):", "dad") || "dad").trim();
+                          const role = normalizeMemberRole(prompt("Role (owner/coach/dad/skater):", "dad"), "dad");
                           const pin = sanitizePin(prompt("Set PIN (required, exactly 4 digits):", "") || "");
                           if (pin.length !== 4) {
                             alert("PIN must be exactly 4 digits.");
                             return;
                           }
-                          const m = { id: `m-${uid()}`, name: name.trim(), role: role || "dad", pin, photoUrl: "", biometricCredentialId: "" };
+                          const m = { id: `m-${uid()}`, name: name.trim(), role, pin, photoUrl: "", biometricCredentialId: "" };
                           setSlice({ members: [...members, m] });
                           toast("Member added", `${m.name} (${m.role}) added.`, "success");
                         }}
@@ -6416,10 +6460,12 @@ export default function SkateTrainingPlanApp() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const nextRole = prompt("Role (owner/coach/dad):", m.role);
+                                  const nextRoleInput = prompt("Role (owner/coach/dad/skater):", m.role);
+                                  if (nextRoleInput == null) return;
+                                  const nextRole = normalizeMemberRole(nextRoleInput, m.role || "dad");
                                   if (!nextRole) return;
-                                  setSlice({ members: members.map((x) => (x.id === m.id ? { ...x, role: nextRole.trim() } : x)) });
-                                  toast("Role updated", `${m.name} → ${nextRole.trim()}`, "info");
+                                  setSlice({ members: members.map((x) => (x.id === m.id ? { ...x, role: nextRole } : x)) });
+                                  toast("Role updated", `${m.name} → ${nextRole}`, "info");
                                 }}
                                 className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
                               >
@@ -6612,7 +6658,7 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "settings" ? (
+          {ui.view === "settings" && !isSkaterMember ? (
             <motion.div key="settings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className={settingsPanelClass}>
                 <div>
