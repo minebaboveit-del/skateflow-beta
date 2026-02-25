@@ -1428,7 +1428,7 @@ function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabK
   return (
     <button type="button" onClick={onClick} className={className}>
       <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
-      <span className="hidden sm:inline">{label}</span>
+      <span className={skaterMode ? "hidden" : "hidden sm:inline"}>{label}</span>
     </button>
   );
 }
@@ -1578,8 +1578,12 @@ export default function SkateTrainingPlanApp() {
     setSlice({ draft: { ...draft, ...patch } });
     setLastDraftSavedAt(new Date());
   };
+  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const switchView = (nextView) => {
     setUI({ view: nextView });
+    if (!isSkaterMember && typeof window !== "undefined" && window.innerWidth < 640) {
+      setMobileTabsOpen(false);
+    }
   };
 
   const betaStats = useMemo(() => {
@@ -4800,7 +4804,31 @@ export default function SkateTrainingPlanApp() {
             </div>
           </div>
 
-          <div className="mt-3 grid grid-cols-5 gap-1.5 sm:grid-cols-6 lg:grid-cols-11 sm:gap-2">
+          {!isSkaterMember ? (
+            <div className="mt-3 sm:hidden">
+              <button
+                type="button"
+                onClick={() => setMobileTabsOpen((v) => !v)}
+                className={
+                  "w-full rounded-2xl border px-3 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2 " +
+                  (isLightMode ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-100" : "border-white/10 bg-white/5 hover:bg-white/10")
+                }
+              >
+                {mobileTabsOpen ? "Hide sections" : "Show sections"}
+                {mobileTabsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+            </div>
+          ) : null}
+
+          <div
+            className={
+              (isSkaterMember
+                ? "mt-3 grid grid-cols-5 gap-1.5"
+                : mobileTabsOpen
+                ? "mt-3 grid grid-cols-5 gap-1.5"
+                : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-11 sm:gap-2"
+            }
+          >
             <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" {...tabThemeProps} onClick={() => switchView("log")} />
             <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" {...tabThemeProps} onClick={() => switchView("cards")} />
             <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" {...tabThemeProps} onClick={() => switchView("calendar")} />
