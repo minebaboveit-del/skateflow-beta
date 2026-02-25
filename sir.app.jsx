@@ -1422,12 +1422,12 @@ function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabK
     ? "bg-white/90 text-slate-700 ring-cyan-200 hover:bg-cyan-50"
     : "bg-slate-900/75 text-slate-100 ring-cyan-500/25 hover:bg-cyan-500/10";
   const inactiveTone = lightMode ? "bg-white text-slate-700 ring-slate-300 hover:bg-slate-100" : "bg-white/5 text-white ring-white/10 hover:bg-white/10";
-  const className = `flex-1 rounded-2xl px-3 py-2.5 text-sm font-semibold inline-flex items-center justify-center gap-2 ring-1 transition shadow-sm ${
+  const className = `flex-1 rounded-xl sm:rounded-2xl px-2 sm:px-3 py-2 sm:py-2.5 text-[11px] sm:text-sm font-semibold inline-flex items-center justify-center gap-1 sm:gap-2 ring-1 transition shadow-sm ${
     skaterMode ? (active ? skaterActiveTone : skaterInactiveTone) : active ? activeTone : inactiveTone
   }`;
   return (
     <button type="button" onClick={onClick} className={className}>
-      <Icon className="h-4 w-4" />
+      <Icon className="h-3.5 w-3.5 sm:h-4 sm:w-4" />
       <span className="hidden sm:inline">{label}</span>
     </button>
   );
@@ -1578,12 +1578,8 @@ export default function SkateTrainingPlanApp() {
     setSlice({ draft: { ...draft, ...patch } });
     setLastDraftSavedAt(new Date());
   };
-  const [mobileTabsOpen, setMobileTabsOpen] = useState(false);
   const switchView = (nextView) => {
     setUI({ view: nextView });
-    if (typeof window !== "undefined" && window.innerWidth < 640) {
-      setMobileTabsOpen(false);
-    }
   };
 
   const betaStats = useMemo(() => {
@@ -4804,21 +4800,7 @@ export default function SkateTrainingPlanApp() {
             </div>
           </div>
 
-          <div className="mt-3 sm:hidden">
-            <button
-              type="button"
-              onClick={() => setMobileTabsOpen((v) => !v)}
-              className={
-                "w-full rounded-2xl border px-3 py-2 text-sm font-semibold inline-flex items-center justify-center gap-2 " +
-                (isLightMode ? "border-slate-300 bg-white text-slate-800 hover:bg-slate-100" : "border-white/10 bg-white/5 hover:bg-white/10")
-              }
-            >
-              {mobileTabsOpen ? "Hide sections" : "Show sections"}
-              {mobileTabsOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            </button>
-          </div>
-
-          <div className={(mobileTabsOpen ? "mt-3 grid grid-cols-4 gap-2" : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-11 sm:gap-2"}>
+          <div className="mt-3 grid grid-cols-5 gap-1.5 sm:grid-cols-6 lg:grid-cols-11 sm:gap-2">
             <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" {...tabThemeProps} onClick={() => switchView("log")} />
             <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" {...tabThemeProps} onClick={() => switchView("cards")} />
             <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" {...tabThemeProps} onClick={() => switchView("calendar")} />
