@@ -2908,6 +2908,23 @@ export default function SkateTrainingPlanApp() {
     [plans]
   );
   const activeCoachItems = coachCornerBySkaterId[ui.activeSkaterId] || [];
+  const coachDemoVideoClips = useMemo(() => {
+    return activeCoachItems
+      .flatMap((item) =>
+        toArray(item.media)
+          .filter((m) => String(m?.type || "").startsWith("video/"))
+          .map((m) => ({
+            key: `${item.id}:${m.id}`,
+            itemId: item.id,
+            mediaId: m.id,
+            media: m,
+            title: item.title || "Coach Demo",
+            trickLabel: item.taskLabel || "",
+            notes: item.notes || "",
+          }))
+      )
+      .slice(0, 20);
+  }, [activeCoachItems]);
   const coachStudentVideoClips = useMemo(() => {
     return sessions
       .filter((s) => s.skaterId === ui.activeSkaterId)
@@ -2916,6 +2933,7 @@ export default function SkateTrainingPlanApp() {
         toArray(s.media)
           .filter((m) => String(m?.type || "").startsWith("video/"))
           .map((m) => ({
+            key: `${s.id}:${m.id}`,
             sessionId: s.id,
             mediaId: m.id,
             media: m,
@@ -2926,6 +2944,69 @@ export default function SkateTrainingPlanApp() {
       )
       .slice(0, 12);
   }, [sessions, ui.activeSkaterId]);
+  const [compareCoachClipKey, setCompareCoachClipKey] = useState("");
+  const [compareStudentClipKey, setCompareStudentClipKey] = useState("");
+  const compareCoachVideoRef = useRef(null);
+  const compareStudentVideoRef = useRef(null);
+
+  useEffect(() => {
+    if (!coachDemoVideoClips.length) {
+      if (compareCoachClipKey) setCompareCoachClipKey("");
+      return;
+    }
+    if (coachDemoVideoClips.some((c) => c.key === compareCoachClipKey)) return;
+    setCompareCoachClipKey(coachDemoVideoClips[0].key);
+  }, [coachDemoVideoClips, compareCoachClipKey]);
+
+  useEffect(() => {
+    if (!coachStudentVideoClips.length) {
+      if (compareStudentClipKey) setCompareStudentClipKey("");
+      return;
+    }
+    if (coachStudentVideoClips.some((c) => c.key === compareStudentClipKey)) return;
+    setCompareStudentClipKey(coachStudentVideoClips[0].key);
+  }, [coachStudentVideoClips, compareStudentClipKey]);
+
+  const selectedCoachCompareClip = useMemo(
+    () => coachDemoVideoClips.find((clip) => clip.key === compareCoachClipKey) || null,
+    [coachDemoVideoClips, compareCoachClipKey]
+  );
+  const selectedStudentCompareClip = useMemo(
+    () => coachStudentVideoClips.find((clip) => clip.key === compareStudentClipKey) || null,
+    [coachStudentVideoClips, compareStudentClipKey]
+  );
+
+  const pauseCompareVideos = () => {
+    try {
+      compareCoachVideoRef.current?.pause();
+    } catch {
+      // ignore
+    }
+    try {
+      compareStudentVideoRef.current?.pause();
+    } catch {
+      // ignore
+    }
+  };
+
+  const resetCompareVideos = () => {
+    pauseCompareVideos();
+    if (compareCoachVideoRef.current) compareCoachVideoRef.current.currentTime = 0;
+    if (compareStudentVideoRef.current) compareStudentVideoRef.current.currentTime = 0;
+  };
+
+  const playCompareVideos = async () => {
+    if (!compareCoachVideoRef.current || !compareStudentVideoRef.current) return;
+    const coachTime = Number(compareCoachVideoRef.current.currentTime) || 0;
+    const studentTime = Number(compareStudentVideoRef.current.currentTime) || 0;
+    const syncTime = Math.min(coachTime, studentTime);
+    compareCoachVideoRef.current.currentTime = syncTime;
+    compareStudentVideoRef.current.currentTime = syncTime;
+    const results = await Promise.allSettled([compareCoachVideoRef.current.play(), compareStudentVideoRef.current.play()]);
+    if (results.some((r) => r.status === "rejected")) {
+      toast("Compare playback blocked", "Tap play directly on each video once, then use Play Both.", "warn");
+    }
+  };
 
   const addCoachDemoFromFiles = async (fileList) => {
     if (!activeSkater) return;
@@ -6216,7 +6297,7 @@ export default function SkateTrainingPlanApp() {
                   {coachStudentVideoClips.length ? (
                     <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                       {coachStudentVideoClips.map((clip) => (
-                        <div key={`${clip.sessionId}-${clip.mediaId}`} className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
+                        <div key={clip.key} className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
                           <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
                             <video src={mediaSrc(clip.media)} className="h-full w-full object-cover" controls playsInline />
                           </div>
@@ -6231,12 +6312,120 @@ export default function SkateTrainingPlanApp() {
                             <Pencil className="h-3.5 w-3.5 inline-block mr-1" />
                             Coach Edit Clip
                           </button>
+                          <button
+                            type="button"
+                            onClick={() => setCompareStudentClipKey(clip.key)}
+                            className={`mt-2 ml-2 rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 ${
+                              compareStudentClipKey === clip.key
+                                ? "bg-white text-black ring-white"
+                                : "bg-white/5 ring-white/10 text-white hover:bg-white/10"
+                            }`}
+                          >
+                            Use In Compare
+                          </button>
                         </div>
                       ))}
                     </div>
                   ) : (
                     <div className="mt-2 text-xs text-white/60">No student video clips yet. Save a session with video to edit here.</div>
                   )}
+                </div>
+
+                <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-semibold">Coach vs Student Compare</div>
+                      <div className="text-xs text-white/60">Select one coach demo and one student clip, then play both side-by-side.</div>
+                    </div>
+                    <Pill tone="cyan">Side by side</Pill>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <div className="text-xs text-white/60">Coach demo clip</div>
+                      <select
+                        value={compareCoachClipKey}
+                        onChange={(e) => setCompareCoachClipKey(e.target.value)}
+                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      >
+                        {!coachDemoVideoClips.length ? <option value="">No coach demo videos yet</option> : null}
+                        {coachDemoVideoClips.map((clip) => (
+                          <option key={clip.key} value={clip.key}>
+                            {clip.title}{clip.trickLabel ? ` • ${clip.trickLabel}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <div className="text-xs text-white/60">Student clip</div>
+                      <select
+                        value={compareStudentClipKey}
+                        onChange={(e) => setCompareStudentClipKey(e.target.value)}
+                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      >
+                        {!coachStudentVideoClips.length ? <option value="">No student videos yet</option> : null}
+                        {coachStudentVideoClips.map((clip) => (
+                          <option key={clip.key} value={clip.key}>
+                            {clip.date || "No date"} • {clip.dayType || "Session"}{clip.park ? ` • ${clip.park}` : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={playCompareVideos}
+                      disabled={!selectedCoachCompareClip || !selectedStudentCompareClip}
+                      className="rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30 disabled:opacity-50"
+                    >
+                      Play Both
+                    </button>
+                    <button
+                      type="button"
+                      onClick={pauseCompareVideos}
+                      disabled={!selectedCoachCompareClip || !selectedStudentCompareClip}
+                      className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Pause Both
+                    </button>
+                    <button
+                      type="button"
+                      onClick={resetCompareVideos}
+                      disabled={!selectedCoachCompareClip || !selectedStudentCompareClip}
+                      className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Reset To 0s
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                    <div className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
+                      <div className="mb-2 text-xs text-white/60 truncate">
+                        Coach: {selectedCoachCompareClip ? `${selectedCoachCompareClip.title}${selectedCoachCompareClip.trickLabel ? ` • ${selectedCoachCompareClip.trickLabel}` : ""}` : "No coach clip selected"}
+                      </div>
+                      <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+                        {selectedCoachCompareClip ? (
+                          <video ref={compareCoachVideoRef} src={mediaSrc(selectedCoachCompareClip.media)} className="h-full w-full object-cover" controls playsInline />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-xs text-white/60">Select a coach demo video.</div>
+                        )}
+                      </div>
+                    </div>
+                    <div className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
+                      <div className="mb-2 text-xs text-white/60 truncate">
+                        Student: {selectedStudentCompareClip ? `${selectedStudentCompareClip.date || "No date"} • ${selectedStudentCompareClip.dayType || "Session"}${selectedStudentCompareClip.park ? ` • ${selectedStudentCompareClip.park}` : ""}` : "No student clip selected"}
+                      </div>
+                      <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+                        {selectedStudentCompareClip ? (
+                          <video ref={compareStudentVideoRef} src={mediaSrc(selectedStudentCompareClip.media)} className="h-full w-full object-cover" controls playsInline />
+                        ) : (
+                          <div className="h-full w-full flex items-center justify-center text-xs text-white/60">Select a student video.</div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -6262,6 +6451,19 @@ export default function SkateTrainingPlanApp() {
                                 <img src={mediaSrc(m)} alt={m.name} className="h-full w-full object-cover" />
                               )}
                             </div>
+                            {m.type?.startsWith("video/") ? (
+                              <button
+                                type="button"
+                                onClick={() => setCompareCoachClipKey(`${item.id}:${m.id}`)}
+                                className={`w-full border-t px-2 py-1 text-[11px] font-semibold ${
+                                  compareCoachClipKey === `${item.id}:${m.id}`
+                                    ? "bg-white text-black border-white"
+                                    : "bg-white/5 text-white border-white/10 hover:bg-white/10"
+                                }`}
+                              >
+                                Use In Compare
+                              </button>
+                            ) : null}
                           </div>
                         ))}
                       </div>
