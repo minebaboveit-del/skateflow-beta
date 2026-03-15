@@ -2946,6 +2946,7 @@ export default function SkateTrainingPlanApp() {
   }, [sessions, ui.activeSkaterId]);
   const [compareCoachClipKey, setCompareCoachClipKey] = useState("");
   const [compareStudentClipKey, setCompareStudentClipKey] = useState("");
+  const [comparePlaybackRate, setComparePlaybackRate] = useState(1);
   const compareCoachVideoRef = useRef(null);
   const compareStudentVideoRef = useRef(null);
 
@@ -2995,8 +2996,29 @@ export default function SkateTrainingPlanApp() {
     if (compareStudentVideoRef.current) compareStudentVideoRef.current.currentTime = 0;
   };
 
+  const stepCompareVideos = (direction) => {
+    if (!compareCoachVideoRef.current || !compareStudentVideoRef.current) return;
+    pauseCompareVideos();
+    const frameStep = (1 / 30) * (direction >= 0 ? 1 : -1);
+    const coachNow = Number(compareCoachVideoRef.current.currentTime) || 0;
+    const studentNow = Number(compareStudentVideoRef.current.currentTime) || 0;
+    let nextTime = Math.max(0, Math.min(coachNow, studentNow) + frameStep);
+    const coachDur = Number(compareCoachVideoRef.current.duration);
+    const studentDur = Number(compareStudentVideoRef.current.duration);
+    const caps = [coachDur, studentDur].filter((d) => Number.isFinite(d) && d > 0);
+    if (caps.length) {
+      const cap = Math.max(0, Math.min(...caps) - 0.001);
+      nextTime = Math.min(nextTime, cap);
+    }
+    compareCoachVideoRef.current.currentTime = nextTime;
+    compareStudentVideoRef.current.currentTime = nextTime;
+  };
+
   const playCompareVideos = async () => {
     if (!compareCoachVideoRef.current || !compareStudentVideoRef.current) return;
+    const rate = Math.max(0.25, Math.min(2, Number(comparePlaybackRate) || 1));
+    compareCoachVideoRef.current.playbackRate = rate;
+    compareStudentVideoRef.current.playbackRate = rate;
     const coachTime = Number(compareCoachVideoRef.current.currentTime) || 0;
     const studentTime = Number(compareStudentVideoRef.current.currentTime) || 0;
     const syncTime = Math.min(coachTime, studentTime);
@@ -3007,6 +3029,12 @@ export default function SkateTrainingPlanApp() {
       toast("Compare playback blocked", "Tap play directly on each video once, then use Play Both.", "warn");
     }
   };
+
+  useEffect(() => {
+    const rate = Math.max(0.25, Math.min(2, Number(comparePlaybackRate) || 1));
+    if (compareCoachVideoRef.current) compareCoachVideoRef.current.playbackRate = rate;
+    if (compareStudentVideoRef.current) compareStudentVideoRef.current.playbackRate = rate;
+  }, [comparePlaybackRate, selectedCoachCompareClip, selectedStudentCompareClip]);
 
   const addCoachDemoFromFiles = async (fileList) => {
     if (!activeSkater) return;
@@ -6398,6 +6426,35 @@ export default function SkateTrainingPlanApp() {
                     >
                       Reset To 0s
                     </button>
+                    <button
+                      type="button"
+                      onClick={() => stepCompareVideos(-1)}
+                      disabled={!selectedCoachCompareClip || !selectedStudentCompareClip}
+                      className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Step -1f
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => stepCompareVideos(1)}
+                      disabled={!selectedCoachCompareClip || !selectedStudentCompareClip}
+                      className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                    >
+                      Step +1f
+                    </button>
+                    <div className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-2 py-1.5">
+                      <span className="text-[11px] text-white/70">Speed</span>
+                      <select
+                        value={String(comparePlaybackRate)}
+                        onChange={(e) => setComparePlaybackRate(Number(e.target.value) || 1)}
+                        className="rounded-lg bg-black/40 border border-white/10 px-2 py-1 text-xs"
+                      >
+                        <option value="0.5">0.5x</option>
+                        <option value="0.75">0.75x</option>
+                        <option value="1">1.0x</option>
+                        <option value="1.25">1.25x</option>
+                      </select>
+                    </div>
                   </div>
 
                   <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
