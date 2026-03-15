@@ -3995,26 +3995,76 @@ export default function SkateTrainingPlanApp() {
     }
   };
 
-  const addDayType = () => {
-    const name = prompt("New day type name:");
-    if (!name) return;
-    const key = name.trim();
+  const [newPlanDayName, setNewPlanDayName] = useState("");
+  const [planDayNameDrafts, setPlanDayNameDrafts] = useState({});
+  const [newTaskDraftByDay, setNewTaskDraftByDay] = useState({});
+
+  useEffect(() => {
+    const keys = Object.keys(plans || {});
+    setPlanDayNameDrafts((prev) => {
+      const next = {};
+      let changed = false;
+      for (const key of keys) {
+        const v = String(prev?.[key] || key);
+        next[key] = v;
+        if (v !== String(prev?.[key] || "")) changed = true;
+      }
+      if (Object.keys(prev || {}).length !== keys.length) changed = true;
+      return changed ? next : prev;
+    });
+    setNewTaskDraftByDay((prev) => {
+      const next = {};
+      let changed = false;
+      for (const key of keys) {
+        const row = toObj(prev?.[key], {});
+        next[key] = {
+          label: String(row.label || ""),
+          target: String(row.target || ""),
+          notes: String(row.notes || ""),
+        };
+        if (!prev?.[key]) changed = true;
+      }
+      if (Object.keys(prev || {}).length !== keys.length) changed = true;
+      return changed ? next : prev;
+    });
+  }, [plans]);
+
+  const addDayType = (nameRaw = "") => {
+    const key = String(nameRaw || newPlanDayName).trim();
+    if (!key) {
+      toast("Missing day name", "Enter a day type name first.", "warn");
+      return;
+    }
+    if (plans[key]) {
+      toast("Day exists", "That day type already exists.", "warn");
+      return;
+    }
     setSlice({ plans: { ...plans, [key]: [] } });
     setDraft({ dayType: key });
+    setNewPlanDayName("");
     toast("Plan added", `New day type: ${key}`, "success");
   };
 
-  const renameDayType = (oldName) => {
-    const nextName = prompt("Rename day type:", oldName);
-    if (!nextName) return;
-    const key = nextName.trim();
+  const renameDayType = (oldName, nextNameRaw = "") => {
+    const key = String(nextNameRaw || oldName).trim();
+    if (!key) return;
     if (key === oldName) return;
+    if (plans[key]) {
+      toast("Day exists", "Pick a unique day type name.", "warn");
+      return;
+    }
     const copy = { ...plans };
     const tasks2 = copy[oldName] || [];
     delete copy[oldName];
     copy[key] = tasks2;
     setSlice({ plans: copy });
     if (draft.dayType === oldName) setDraft({ dayType: key });
+    setPlanDayNameDrafts((prev) => {
+      const next = { ...prev };
+      delete next[oldName];
+      next[key] = key;
+      return next;
+    });
     toast("Plan renamed", `${oldName} → ${key}`, "info");
   };
 
@@ -4028,36 +4078,55 @@ export default function SkateTrainingPlanApp() {
     toast("Plan deleted", `${name} removed.`, "warn");
   };
 
-  const addTaskToDay = (dayName) => {
-    const label = prompt("New task name:");
-    if (!label) return;
-    const targetRaw = prompt("Target reps:", "10");
-    if (targetRaw == null) return;
-    const notes = (prompt("Notes (optional):", "") ?? "").trim();
-    setSlice({
-      plans: {
-        ...plans,
-        [dayName]: [...(plans[dayName] || []), { id: `t-${uid()}`, label: label.trim(), target: Number(targetRaw) || 0, notes }],
-      },
-    });
-    toast("Task added", `${label.trim()} (${dayName})`, "success");
-  };
-
-  const editTask = (dayName, task) => {
-    const label = prompt("Task name:", task.label);
-    if (!label) return;
-    const targetRaw = prompt("Target reps:", String(task.target));
-    if (targetRaw == null) return;
-    const notes = (prompt("Notes (optional):", task.notes || "") ?? "").trim();
+  const updatePlanTask = (dayName, taskId, patch) => {
     setSlice({
       plans: {
         ...plans,
         [dayName]: (plans[dayName] || []).map((t) =>
-          t.id === task.id ? { ...t, label: label.trim(), target: Number(targetRaw) || 0, notes } : t
+          t.id === taskId
+            ? {
+                ...t,
+                ...patch,
+                label: String((patch?.label ?? t.label) || ""),
+                target: Math.max(0, Number(patch?.target ?? t.target) || 0),
+                notes: String((patch?.notes ?? t.notes) || ""),
+              }
+            : t
         ),
       },
     });
-    toast("Task updated", `${label.trim()} (${dayName})`, "info");
+  };
+
+  const setNewTaskDraftField = (dayName, field, value) => {
+    setNewTaskDraftByDay((prev) => ({
+      ...prev,
+      [dayName]: {
+        ...toObj(prev?.[dayName], {}),
+        [field]: value,
+      },
+    }));
+  };
+
+  const addTaskToDay = (dayName) => {
+    const row = toObj(newTaskDraftByDay?.[dayName], {});
+    const label = String(row.label || "").trim();
+    if (!label) {
+      toast("Missing task", "Add a task name before saving.", "warn");
+      return;
+    }
+    const target = Math.max(0, Number(row.target) || 0);
+    const notes = String(row.notes || "").trim();
+    setSlice({
+      plans: {
+        ...plans,
+        [dayName]: [...(plans[dayName] || []), { id: `t-${uid()}`, label, target, notes }],
+      },
+    });
+    setNewTaskDraftByDay((prev) => ({
+      ...prev,
+      [dayName]: { label: "", target: "", notes: "" },
+    }));
+    toast("Task added", `${label} (${dayName})`, "success");
   };
 
   const deleteTask = (dayName, taskId) => {
@@ -6192,9 +6261,17 @@ export default function SkateTrainingPlanApp() {
                     <div className="mt-2 text-sm text-white/60">Owner + Coach + Skater can edit. Dad can view/log.</div>
                   </div>
                   {canEditPlans ? (
-                    <button type="button" onClick={addDayType} className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90">
-                      <Plus className="h-4 w-4 inline-block mr-2" /> Add Day
-                    </button>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <input
+                        value={newPlanDayName}
+                        onChange={(e) => setNewPlanDayName(e.target.value)}
+                        placeholder="New day type name"
+                        className="rounded-2xl bg-black/40 border border-white/10 px-3 py-2 text-sm min-w-[210px]"
+                      />
+                      <button type="button" onClick={() => addDayType(newPlanDayName)} className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90">
+                        <Plus className="h-4 w-4 inline-block mr-2" /> Add Day
+                      </button>
+                    </div>
                   ) : (
                     <Pill tone="warn">View only</Pill>
                   )}
@@ -6203,24 +6280,69 @@ export default function SkateTrainingPlanApp() {
                 <div className="mt-5 space-y-3">
                   {Object.entries(plans).map(([dayName, dayTasks]) => (
                     <div key={dayName} className="rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
-                      <div className="flex items-center justify-between gap-3">
+                      {canEditPlans ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            value={String(planDayNameDrafts?.[dayName] ?? dayName)}
+                            onChange={(e) => setPlanDayNameDrafts((prev) => ({ ...prev, [dayName]: e.target.value }))}
+                            className="flex-1 min-w-[220px] rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm font-semibold"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => renameDayType(dayName, planDayNameDrafts?.[dayName] || dayName)}
+                            disabled={!String(planDayNameDrafts?.[dayName] || "").trim() || String(planDayNameDrafts?.[dayName] || "").trim() === dayName}
+                            className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                          >
+                            Save Name
+                          </button>
+                          <button type="button" onClick={() => deleteDayType(dayName)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
+                            Delete
+                          </button>
+                        </div>
+                      ) : (
                         <div className="text-sm font-bold">{dayName}</div>
-                        {canEditPlans ? (
-                          <div className="flex gap-2">
-                            <button type="button" onClick={() => renameDayType(dayName)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
-                              Rename
-                            </button>
-                            <button type="button" onClick={() => deleteDayType(dayName)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
-                              Delete
-                            </button>
-                          </div>
-                        ) : null}
-                      </div>
+                      )}
 
                       <div className="mt-3 space-y-2">
                         {dayTasks.map((t) => (
                           <div key={t.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
-                            <div className="flex items-start justify-between gap-3">
+                            {canEditPlans ? (
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                                <div className="sm:col-span-4">
+                                  <div className="text-[11px] text-white/60">Task</div>
+                                  <input
+                                    value={t.label || ""}
+                                    onChange={(e) => updatePlanTask(dayName, t.id, { label: e.target.value })}
+                                    className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                                  />
+                                </div>
+                                <div className="sm:col-span-2">
+                                  <div className="text-[11px] text-white/60">Reps</div>
+                                  <input
+                                    value={String(t.target ?? "")}
+                                    onChange={(e) => {
+                                      const next = clampNum(e.target.value);
+                                      updatePlanTask(dayName, t.id, { target: next === "" ? 0 : Number(next) || 0 });
+                                    }}
+                                    inputMode="numeric"
+                                    className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                                  />
+                                </div>
+                                <div className="sm:col-span-5">
+                                  <div className="text-[11px] text-white/60">Notes</div>
+                                  <input
+                                    value={t.notes || ""}
+                                    onChange={(e) => updatePlanTask(dayName, t.id, { notes: e.target.value })}
+                                    className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                                  />
+                                </div>
+                                <div className="sm:col-span-1 flex items-end">
+                                  <button type="button" onClick={() => deleteTask(dayName, t.id)} className="w-full rounded-xl bg-white/5 ring-1 ring-white/10 px-2 py-2 text-xs font-semibold hover:bg-white/10">
+                                    Remove
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
                               <div className="min-w-0">
                                 <div className="text-sm font-semibold truncate">{t.label}</div>
                                 <div className="mt-1 text-xs text-white/60">
@@ -6228,26 +6350,48 @@ export default function SkateTrainingPlanApp() {
                                   {t.notes ? ` • ${t.notes}` : ""}
                                 </div>
                               </div>
-                              {canEditPlans ? (
-                                <div className="flex gap-2">
-                                  <button type="button" onClick={() => editTask(dayName, t)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
-                                    Edit
-                                  </button>
-                                  <button type="button" onClick={() => deleteTask(dayName, t.id)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
-                                    Remove
-                                  </button>
-                                </div>
-                              ) : null}
-                            </div>
+                            )}
                           </div>
                         ))}
                       </div>
 
                       {canEditPlans ? (
-                        <div className="mt-3">
-                          <button type="button" onClick={() => addTaskToDay(dayName)} className="rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-300 text-black px-4 py-2 text-sm font-extrabold hover:opacity-95">
-                            <Plus className="h-4 w-4 inline-block mr-2" /> Add Task
-                          </button>
+                        <div className="mt-3 rounded-2xl bg-black/40 ring-1 ring-white/10 p-3">
+                          <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                            <div className="sm:col-span-4">
+                              <div className="text-[11px] text-white/60">Task</div>
+                              <input
+                                value={String(newTaskDraftByDay?.[dayName]?.label || "")}
+                                onChange={(e) => setNewTaskDraftField(dayName, "label", e.target.value)}
+                                placeholder="New task"
+                                className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                              />
+                            </div>
+                            <div className="sm:col-span-2">
+                              <div className="text-[11px] text-white/60">Reps</div>
+                              <input
+                                value={String(newTaskDraftByDay?.[dayName]?.target || "")}
+                                onChange={(e) => setNewTaskDraftField(dayName, "target", clampNum(e.target.value))}
+                                inputMode="numeric"
+                                placeholder="0"
+                                className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                              />
+                            </div>
+                            <div className="sm:col-span-5">
+                              <div className="text-[11px] text-white/60">Notes</div>
+                              <input
+                                value={String(newTaskDraftByDay?.[dayName]?.notes || "")}
+                                onChange={(e) => setNewTaskDraftField(dayName, "notes", e.target.value)}
+                                placeholder="Optional notes"
+                                className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                              />
+                            </div>
+                            <div className="sm:col-span-1 flex items-end">
+                              <button type="button" onClick={() => addTaskToDay(dayName)} className="w-full rounded-xl bg-gradient-to-r from-cyan-400 to-emerald-300 text-black px-2 py-2 text-xs font-extrabold hover:opacity-95">
+                                Add
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       ) : null}
                     </div>
