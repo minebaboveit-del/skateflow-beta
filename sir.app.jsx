@@ -1007,6 +1007,43 @@ async function loadVideoMetadataFromUrl(sourceUrl) {
   });
 }
 
+function normalizeOverlayStrokes(input) {
+  return toArray(input)
+    .map((s) => ({
+      color: String(s?.color || "#f43f5e"),
+      width: Math.max(1, Number(s?.width) || 4),
+      points: toArray(s?.points)
+        .map((p) => ({
+          x: Math.max(0, Math.min(1, Number(p?.x) || 0)),
+          y: Math.max(0, Math.min(1, Number(p?.y) || 0)),
+        }))
+        .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y)),
+    }))
+    .filter((s) => s.points.length >= 2);
+}
+
+function drawOverlayStrokes(ctx, strokes, width, height) {
+  if (!ctx || !strokes?.length) return;
+  const scale = Math.max(width, height) / 800;
+  for (const stroke of strokes) {
+    const points = stroke.points || [];
+    if (points.length < 2) continue;
+    const color = /^#[0-9a-f]{3,8}$/i.test(String(stroke.color || "")) ? String(stroke.color) : "#f43f5e";
+    ctx.save();
+    ctx.beginPath();
+    ctx.lineCap = "round";
+    ctx.lineJoin = "round";
+    ctx.strokeStyle = color;
+    ctx.lineWidth = Math.max(1, Number(stroke.width) * Math.max(0.7, scale));
+    ctx.moveTo(points[0].x * width, points[0].y * height);
+    for (let i = 1; i < points.length; i += 1) {
+      ctx.lineTo(points[i].x * width, points[i].y * height);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+}
+
 async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
   if (!sourceUrl) throw new Error("Missing video source.");
   if (typeof document === "undefined") throw new Error("Video editor requires a browser environment.");
@@ -1043,6 +1080,7 @@ async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
   const maxDim = Math.max(360, Number(opts.maxDim) || 1080);
   const fps = Math.min(60, Math.max(12, Number(opts.fps) || 30));
   const bitrateKbps = Math.min(12000, Math.max(700, Number(opts.bitrateKbps) || 3500));
+  const overlayStrokes = normalizeOverlayStrokes(opts.overlayStrokes);
 
   const srcW = Math.max(2, Number(video.videoWidth) || 1280);
   const srcH = Math.max(2, Number(video.videoHeight) || 720);
@@ -1136,6 +1174,7 @@ async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
     if (finished) return;
     try {
       ctx.drawImage(video, 0, 0, outW, outH);
+      drawOverlayStrokes(ctx, overlayStrokes, outW, outH);
     } catch {
       // ignore draw glitches and continue
     }
@@ -1648,6 +1687,7 @@ export default function SkateTrainingPlanApp() {
   const isSkaterMember = activeMember?.role === "skater";
   const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach" || activeMember?.role === "skater";
   const canComment = !!activeMember;
+  const canEditStudentMedia = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const canManageTeam = activeMember?.role === "owner";
   const roleAllowedViews = useMemo(
     () =>
@@ -1978,9 +2018,121 @@ export default function SkateTrainingPlanApp() {
     processing: false,
     error: "",
   });
+  const [videoDrawEnabled, setVideoDrawEnabled] = useState(false);
+  const [videoDrawColor, setVideoDrawColor] = useState("#f43f5e");
+  const [videoDrawWidth, setVideoDrawWidth] = useState(4);
+  const [videoDrawStrokes, setVideoDrawStrokes] = useState([]);
+  const videoDrawStrokesRef = useRef([]);
+  const videoDrawWrapRef = useRef(null);
+  const videoDrawCanvasRef = useRef(null);
+  const activeVideoDrawStrokeIdRef = useRef("");
+
+  const resetVideoDrawState = () => {
+    setVideoDrawEnabled(false);
+    setVideoDrawColor("#f43f5e");
+    setVideoDrawWidth(4);
+    setVideoDrawStrokes([]);
+    videoDrawStrokesRef.current = [];
+    activeVideoDrawStrokeIdRef.current = "";
+  };
+
+  const ensureVideoDrawCanvas = () => {
+    const canvas = videoDrawCanvasRef.current;
+    const wrap = videoDrawWrapRef.current;
+    if (!canvas || !wrap) return null;
+    const dpr = Math.max(1, Number(window.devicePixelRatio) || 1);
+    const width = Math.max(1, Math.round(wrap.clientWidth));
+    const height = Math.max(1, Math.round(wrap.clientHeight));
+    const pixelW = Math.max(1, Math.round(width * dpr));
+    const pixelH = Math.max(1, Math.round(height * dpr));
+    if (canvas.width !== pixelW || canvas.height !== pixelH) {
+      canvas.width = pixelW;
+      canvas.height = pixelH;
+    }
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return null;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    return { ctx, width, height };
+  };
+
+  const redrawVideoDrawLayer = () => {
+    const layer = ensureVideoDrawCanvas();
+    if (!layer) return;
+    const { ctx, width, height } = layer;
+    ctx.clearRect(0, 0, width, height);
+    drawOverlayStrokes(ctx, normalizeOverlayStrokes(videoDrawStrokesRef.current), width, height);
+  };
+
+  const eventToDrawPoint = (event) => {
+    const wrap = videoDrawWrapRef.current;
+    if (!wrap) return null;
+    const rect = wrap.getBoundingClientRect();
+    if (!rect.width || !rect.height) return null;
+    const x = (Number(event.clientX) - rect.left) / rect.width;
+    const y = (Number(event.clientY) - rect.top) / rect.height;
+    return {
+      x: Math.max(0, Math.min(1, x)),
+      y: Math.max(0, Math.min(1, y)),
+    };
+  };
+
+  const handleVideoDrawPointerDown = (event) => {
+    if (!videoDrawEnabled) return;
+    const point = eventToDrawPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    const id = `stroke-${uid()}`;
+    activeVideoDrawStrokeIdRef.current = id;
+    try {
+      event.currentTarget.setPointerCapture(event.pointerId);
+    } catch {
+      // ignore
+    }
+    setVideoDrawStrokes((prev) => [...prev, { id, color: videoDrawColor, width: videoDrawWidth, points: [point] }]);
+  };
+
+  const handleVideoDrawPointerMove = (event) => {
+    const strokeId = activeVideoDrawStrokeIdRef.current;
+    if (!videoDrawEnabled || !strokeId) return;
+    const point = eventToDrawPoint(event);
+    if (!point) return;
+    event.preventDefault();
+    setVideoDrawStrokes((prev) =>
+      prev.map((stroke) => (stroke.id === strokeId ? { ...stroke, points: [...(stroke.points || []), point] } : stroke))
+    );
+  };
+
+  const endVideoDrawStroke = (event) => {
+    if (event) {
+      try {
+        event.currentTarget.releasePointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
+    }
+    activeVideoDrawStrokeIdRef.current = "";
+  };
+
+  useEffect(() => {
+    videoDrawStrokesRef.current = videoDrawStrokes;
+    if (videoEdit.open) redrawVideoDrawLayer();
+  }, [videoDrawStrokes, videoEdit.open]);
+
+  useEffect(() => {
+    if (!videoEdit.open) return undefined;
+    const onResize = () => redrawVideoDrawLayer();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", onResize);
+      return () => window.removeEventListener("resize", onResize);
+    }
+    const observer = new ResizeObserver(onResize);
+    if (videoDrawWrapRef.current) observer.observe(videoDrawWrapRef.current);
+    return () => observer.disconnect();
+  }, [videoEdit.open]);
 
   const closeVideoEditor = () => {
     if (videoEdit.processing) return;
+    resetVideoDrawState();
     setVideoEdit({
       open: false,
       sourceType: "draft",
@@ -2027,6 +2179,7 @@ export default function SkateTrainingPlanApp() {
       return;
     }
     try {
+      resetVideoDrawState();
       const meta = await loadVideoMetadataFromUrl(src);
       const duration = Math.max(0.25, Number(meta.durationSec) || 0.25);
       setVideoEdit({
@@ -2060,6 +2213,7 @@ export default function SkateTrainingPlanApp() {
       return;
     }
     try {
+      resetVideoDrawState();
       const meta = await loadVideoMetadataFromUrl(src);
       const duration = Math.max(0.25, Number(meta.durationSec) || 0.25);
       setVideoEdit({
@@ -2099,6 +2253,7 @@ export default function SkateTrainingPlanApp() {
         maxDim: videoEdit.maxDim,
         fps: videoEdit.fps,
         bitrateKbps: videoEdit.bitrateKbps,
+        overlayStrokes: videoDrawStrokes,
       });
       const ext = String(out.mimeType || "").includes("webm") ? "webm" : "mp4";
       const baseName = String(media.name || "clip").replace(/\.[^.]+$/, "");
@@ -2155,7 +2310,7 @@ export default function SkateTrainingPlanApp() {
       closeVideoEditor();
       toast(
         "Video updated",
-        `${Math.max(0.25, out.durationSec).toFixed(1)}s • ${out.width}x${out.height} • ${formatBytes(out.blob.size)}`,
+        `${Math.max(0.25, out.durationSec).toFixed(1)}s • ${out.width}x${out.height} • ${formatBytes(out.blob.size)}${videoDrawStrokes.length ? " • Coach overlay added" : ""}`,
         "success"
       );
     } catch (err) {
@@ -2753,6 +2908,24 @@ export default function SkateTrainingPlanApp() {
     [plans]
   );
   const activeCoachItems = coachCornerBySkaterId[ui.activeSkaterId] || [];
+  const coachStudentVideoClips = useMemo(() => {
+    return sessions
+      .filter((s) => s.skaterId === ui.activeSkaterId)
+      .sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")))
+      .flatMap((s) =>
+        toArray(s.media)
+          .filter((m) => String(m?.type || "").startsWith("video/"))
+          .map((m) => ({
+            sessionId: s.id,
+            mediaId: m.id,
+            media: m,
+            date: s.date,
+            dayType: s.dayType,
+            park: s.park,
+          }))
+      )
+      .slice(0, 12);
+  }, [sessions, ui.activeSkaterId]);
 
   const addCoachDemoFromFiles = async (fileList) => {
     if (!activeSkater) return;
@@ -4604,7 +4777,7 @@ export default function SkateTrainingPlanApp() {
         </div>
       </Modal>
 
-      <Modal open={videoEdit.open} title="Trim & Compress Video" onClose={closeVideoEditor}>
+      <Modal open={videoEdit.open} title="Coach Video Editor" onClose={closeVideoEditor}>
         <div className="space-y-3">
           <div className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
             <div className="text-sm font-semibold truncate">{videoEdit.name || "Video Clip"}</div>
@@ -4613,11 +4786,12 @@ export default function SkateTrainingPlanApp() {
             </div>
             <div className="mt-1 text-xs text-cyan-200/90">
               Output: {formatDurationSec(trimmedDurationSec)} • max {videoEdit.maxDim}p • {videoEdit.fps}fps • {videoEdit.bitrateKbps} kbps
+              {videoDrawStrokes.length ? ` • ${videoDrawStrokes.length} overlay stroke(s)` : ""}
             </div>
           </div>
 
           <div className="overflow-hidden rounded-2xl bg-black ring-1 ring-white/10">
-            <div className="aspect-video">
+            <div ref={videoDrawWrapRef} className="aspect-video relative">
               {videoEdit.sourceUrl ? (
                 <video
                   key={`${videoEdit.sourceUrl}-${videoEdit.startSec}`}
@@ -4634,6 +4808,70 @@ export default function SkateTrainingPlanApp() {
                   }}
                 />
               ) : null}
+              <canvas
+                ref={videoDrawCanvasRef}
+                onPointerDown={handleVideoDrawPointerDown}
+                onPointerMove={handleVideoDrawPointerMove}
+                onPointerUp={endVideoDrawStroke}
+                onPointerCancel={endVideoDrawStroke}
+                className={`absolute inset-0 h-full w-full ${videoDrawEnabled ? "cursor-crosshair pointer-events-auto" : "pointer-events-none"}`}
+                style={{ touchAction: "none" }}
+              />
+            </div>
+          </div>
+
+          <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setVideoDrawEnabled((v) => !v)}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 ${
+                  videoDrawEnabled ? "bg-cyan-500/20 ring-cyan-400/30 text-cyan-100" : "bg-white/5 ring-white/10 hover:bg-white/10"
+                }`}
+              >
+                <Pencil className="h-3.5 w-3.5 inline-block mr-1" />
+                {videoDrawEnabled ? "Drawing On" : "Draw Corrections"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoDrawStrokes((prev) => prev.slice(0, -1))}
+                disabled={!videoDrawStrokes.length}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+              >
+                Undo
+              </button>
+              <button
+                type="button"
+                onClick={() => setVideoDrawStrokes([])}
+                disabled={!videoDrawStrokes.length}
+                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+              >
+                Clear
+              </button>
+              <span className="text-xs text-white/60">Stroke</span>
+              {[2, 4, 6].map((w) => (
+                <button
+                  key={w}
+                  type="button"
+                  onClick={() => setVideoDrawWidth(w)}
+                  className={`rounded-lg px-2 py-1 text-[11px] ring-1 ${videoDrawWidth === w ? "bg-white text-black ring-white" : "bg-white/5 ring-white/10 hover:bg-white/10"}`}
+                >
+                  {w}px
+                </button>
+              ))}
+              {["#f43f5e", "#22d3ee", "#f59e0b", "#ffffff"].map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setVideoDrawColor(c)}
+                  className={`h-6 w-6 rounded-full ring-2 ${videoDrawColor === c ? "ring-white" : "ring-white/20"}`}
+                  style={{ backgroundColor: c }}
+                  title={`Color ${c}`}
+                />
+              ))}
+            </div>
+            <div className="mt-2 text-[11px] text-white/60">
+              Turn drawing on, mark body/board position, then save. Trim + drawing will export into the updated clip.
             </div>
           </div>
 
@@ -5080,6 +5318,7 @@ export default function SkateTrainingPlanApp() {
                       key={s.id}
                       session={s}
                       canComment={canComment}
+                      canEditMedia={canEditStudentMedia}
                       onEdit={() => openSessionEditor(s)}
                       onEditMedia={(mid) => openSessionVideoEditor(s.id, mid)}
                       onShare={() => shareSessionCard(s)}
@@ -5134,6 +5373,7 @@ export default function SkateTrainingPlanApp() {
                         key={s.id}
                         session={s}
                         canComment={canComment}
+                        canEditMedia={canEditStudentMedia}
                         onEdit={() => openSessionEditor(s)}
                         onEditMedia={(mid) => openSessionVideoEditor(s.id, mid)}
                         onShare={() => shareSessionCard(s)}
@@ -5963,6 +6203,40 @@ export default function SkateTrainingPlanApp() {
                     </label>
                     <div className="text-xs text-white/60">Images auto-compress for easier uploads.</div>
                   </div>
+                </div>
+
+                <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">Student Clips</div>
+                      <div className="text-xs text-white/60">Trim and draw corrections directly on saved practice videos.</div>
+                    </div>
+                    <Pill tone="cyan">{coachStudentVideoClips.length} clips</Pill>
+                  </div>
+                  {coachStudentVideoClips.length ? (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
+                      {coachStudentVideoClips.map((clip) => (
+                        <div key={`${clip.sessionId}-${clip.mediaId}`} className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
+                          <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+                            <video src={mediaSrc(clip.media)} className="h-full w-full object-cover" controls playsInline />
+                          </div>
+                          <div className="mt-2 text-[11px] text-white/60">
+                            {clip.date || "No date"} • {clip.dayType || "Session"}{clip.park ? ` • ${clip.park}` : ""}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => openSessionVideoEditor(clip.sessionId, clip.mediaId)}
+                            className="mt-2 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                          >
+                            <Pencil className="h-3.5 w-3.5 inline-block mr-1" />
+                            Coach Edit Clip
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-white/60">No student video clips yet. Save a session with video to edit here.</div>
+                  )}
                 </div>
 
                 <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
@@ -7030,7 +7304,7 @@ export default function SkateTrainingPlanApp() {
   );
 }
 
-function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComment, onAddComment, onSetMediaComment }) {
+function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComment, canEditMedia, onAddComment, onSetMediaComment }) {
   const completionPct = pct(session.totalCompleted || 0, session.totalTarget || 1);
   const tier = getCardTier(completionPct);
   const ovr = computeOVR(session);
@@ -7167,14 +7441,14 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
                     </div>
                     {canComment ? (
                       <div className="p-2 bg-black/60 ring-1 ring-white/10">
-                        {isVideo ? (
+                        {isVideo && canEditMedia ? (
                           <button
                             type="button"
                             onClick={() => onEditMedia?.(m.id)}
                             className="mb-2 rounded-xl bg-white/10 ring-1 ring-white/15 px-2.5 py-1 text-[11px] font-bold hover:bg-white/20"
-                            title="Trim this saved video"
+                            title="Trim and draw correction lines"
                           >
-                            Trim video
+                            Edit clip
                           </button>
                         ) : null}
                         <div className="text-[11px] text-white/60">Coach note</div>
