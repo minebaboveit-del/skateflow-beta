@@ -75,8 +75,7 @@ const TRAINING_SPORT_OPTIONS = [
   { key: "swimming", label: "Swimming" },
   { key: "flag-football", label: "Football (Flag)" },
   { key: "pop-warner", label: "Football (Pop Warner)" },
-  { key: "football-7v7", label: "Football (7v7)" },
-  { key: "football-highschool", label: "Football (High School)" },
+  { key: "football-7v7-highschool", label: "Football (7v7 + High School)" },
   { key: "gymnastics", label: "Gymnastics" },
   { key: "soccer", label: "Soccer" },
   { key: "baseball", label: "Baseball" },
@@ -86,6 +85,11 @@ const TRAINING_SPORT_OPTIONS = [
   { key: "surfing", label: "Surfing" },
   { key: "snowboarding", label: "Snowboarding" },
 ];
+
+const LEGACY_SPORT_KEY_ALIASES = {
+  "football-7v7": "football-7v7-highschool",
+  "football-highschool": "football-7v7-highschool",
+};
 
 const SPORT_PACKAGE_SINGLE = "single";
 const SPORT_PACKAGE_MULTI = "multi";
@@ -176,7 +180,7 @@ const SPORT_PLAN_TEMPLATES = {
       { label: "Scripted team periods", target: 8, notes: "Install + execute." },
     ],
   },
-  "football-7v7": {
+  "football-7v7-highschool": {
     "Timing + Routes Day": [
       { label: "Timing route throws", target: 24, notes: "Rhythm and anticipation." },
       { label: "WR release drills", target: 20, notes: "Beat press quickly." },
@@ -187,8 +191,6 @@ const SPORT_PLAN_TEMPLATES = {
       { label: "Third-down scenarios", target: 10, notes: "Move chains under pressure." },
       { label: "Turnover circuit", target: 12, notes: "Ball disruption focus." },
     ],
-  },
-  "football-highschool": {
     "Strength + Speed Day": [
       { label: "Explosive lift blocks", target: 6, notes: "Coach-supervised intensity." },
       { label: "40-yard acceleration reps", target: 10, notes: "Fast first 10 yards." },
@@ -303,9 +305,11 @@ function sportLabelFromKey(key) {
 }
 
 function normalizeSportKey(value, fallback = "skate") {
-  const key = String(value || "").trim().toLowerCase();
+  const keyRaw = String(value || "").trim().toLowerCase();
+  const key = LEGACY_SPORT_KEY_ALIASES[keyRaw] || keyRaw;
   if (TRAINING_SPORT_OPTIONS.some((s) => s.key === key)) return key;
-  const fallbackKey = String(fallback || "").trim().toLowerCase();
+  const fallbackRaw = String(fallback || "").trim().toLowerCase();
+  const fallbackKey = LEGACY_SPORT_KEY_ALIASES[fallbackRaw] || fallbackRaw;
   if (TRAINING_SPORT_OPTIONS.some((s) => s.key === fallbackKey)) return fallbackKey;
   return "skate";
 }
@@ -845,9 +849,25 @@ function normalizeStoreShape(raw) {
     const rawBySport = toObj(rawPlansBySportBySkaterId[skaterId], {});
     const nextBySport = {};
     for (const [sportKeyRaw, planMap] of Object.entries(rawBySport)) {
-      const sportKey = String(sportKeyRaw || "").trim().toLowerCase();
+      const sportKeyLegacyRaw = String(sportKeyRaw || "").trim().toLowerCase();
+      const sportKey = LEGACY_SPORT_KEY_ALIASES[sportKeyLegacyRaw] || sportKeyLegacyRaw;
       if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) continue;
-      nextBySport[sportKey] = normalizePlansMap(planMap, {});
+      const normalizedPlanMap = normalizePlansMap(planMap, {});
+      if (!nextBySport[sportKey]) {
+        nextBySport[sportKey] = normalizedPlanMap;
+        continue;
+      }
+      const mergedPlanMap = { ...nextBySport[sportKey] };
+      for (const [rawDayName, tasks] of Object.entries(normalizedPlanMap)) {
+        let dayName = rawDayName;
+        let copyNo = 2;
+        while (mergedPlanMap[dayName]) {
+          dayName = `${rawDayName} (${copyNo})`;
+          copyNo += 1;
+        }
+        mergedPlanMap[dayName] = tasks;
+      }
+      nextBySport[sportKey] = mergedPlanMap;
     }
     if (!Object.keys(nextBySport).length) {
       nextBySport[activeSport] = normalizePlansMap(legacyPlans, DEFAULT_PLANS);
