@@ -66,6 +66,216 @@ const DEFAULT_PLANS = {
   ],
 };
 
+const TRAINING_SPORT_OPTIONS = [
+  { key: "skate", label: "Skateboarding" },
+  { key: "bmx", label: "BMX" },
+  { key: "roller", label: "Roller Skating / Roller Blades" },
+  { key: "scooter", label: "Scooter" },
+  { key: "track", label: "Track & Field" },
+  { key: "swimming", label: "Swimming" },
+  { key: "flag-football", label: "Football (Flag)" },
+  { key: "pop-warner", label: "Football (Pop Warner)" },
+  { key: "football-7v7", label: "Football (7v7)" },
+  { key: "football-highschool", label: "Football (High School)" },
+  { key: "gymnastics", label: "Gymnastics" },
+  { key: "soccer", label: "Soccer" },
+  { key: "baseball", label: "Baseball" },
+  { key: "basketball", label: "Basketball" },
+  { key: "lacrosse", label: "Lacrosse" },
+];
+
+const SPORT_PLAN_TEMPLATES = {
+  skate: DEFAULT_PLANS,
+  bmx: {
+    "Gate Start Day": [
+      { label: "Explosive gate starts", target: 12, notes: "First 2 pedals all power." },
+      { label: "Clip-in reaction starts", target: 10, notes: "Coach whistle cue." },
+      { label: "Sprint finish efforts", target: 8, notes: "20-30m max effort." },
+    ],
+    "Corner + Pump Day": [
+      { label: "Berm corner laps", target: 14, notes: "Eyes through exit." },
+      { label: "Pump track laps", target: 10, notes: "No pedaling if possible." },
+      { label: "Manual timing reps", target: 8, notes: "Balance + hip control." },
+    ],
+  },
+  roller: {
+    "Edge Control Day": [
+      { label: "Inside/outside edge circles", target: 16, notes: "Both directions." },
+      { label: "One-foot glides", target: 12, notes: "Stable core." },
+      { label: "Stop technique reps", target: 10, notes: "T-stop or hockey stop." },
+    ],
+    "Speed + Footwork Day": [
+      { label: "Crossover lanes", target: 12, notes: "Keep shoulders level." },
+      { label: "Stride acceleration", target: 10, notes: "5-10 second bursts." },
+      { label: "Backward transitions", target: 10, notes: "Forward <-> backward." },
+    ],
+  },
+  scooter: {
+    "Street Skill Day": [
+      { label: "Barspin progressions", target: 20, notes: "Flat first then obstacle." },
+      { label: "Tailwhip catches", target: 18, notes: "Eyes on deck catch." },
+      { label: "Bunny hop accuracy", target: 15, notes: "Land on target marks." },
+    ],
+    "Park Flow Day": [
+      { label: "Quarter pipe entries", target: 14, notes: "Control speed to coping." },
+      { label: "Fly-out attempts", target: 12, notes: "Compact posture in air." },
+      { label: "Line consistency", target: 8, notes: "Complete run clean." },
+    ],
+  },
+  track: {
+    "Sprint Mechanics Day": [
+      { label: "A-skip / B-skip drills", target: 10, notes: "Technical quality first." },
+      { label: "Acceleration starts (10-20m)", target: 12, notes: "Drive phase focus." },
+      { label: "Max velocity reps", target: 8, notes: "Full recovery between reps." },
+    ],
+    "Power + Endurance Day": [
+      { label: "Hill sprints", target: 10, notes: "Explosive knee drive." },
+      { label: "Tempo intervals", target: 8, notes: "Controlled pace consistency." },
+      { label: "Core + mobility set", target: 1, notes: "15-20 min post-run." },
+    ],
+  },
+  swimming: {
+    "Technique Day": [
+      { label: "Kickboard laps", target: 10, notes: "Body line and kick tempo." },
+      { label: "Catch/pull drills", target: 10, notes: "Early vertical forearm." },
+      { label: "Breathing pattern sets", target: 8, notes: "Bilateral control." },
+    ],
+    "Speed + Endurance Day": [
+      { label: "Sprint intervals", target: 12, notes: "15-25m max speed." },
+      { label: "Pace sets", target: 8, notes: "Hold race pace form." },
+      { label: "Turns + push-offs", target: 14, notes: "Wall efficiency." },
+    ],
+  },
+  "flag-football": {
+    "Route + Catch Day": [
+      { label: "Route tree reps", target: 18, notes: "Sharp cuts + timing." },
+      { label: "Hands catches", target: 30, notes: "No body catches." },
+      { label: "Flag pull drills", target: 20, notes: "Break down and finish." },
+    ],
+    "QB + Team Day": [
+      { label: "QB drop + throw timing", target: 20, notes: "Set feet quickly." },
+      { label: "7-on-7 reads", target: 12, notes: "Primary/secondary read." },
+      { label: "Two-minute drive reps", target: 6, notes: "Clock management." },
+    ],
+  },
+  "pop-warner": {
+    "Contact Fundamentals Day": [
+      { label: "Form tackle reps", target: 16, notes: "Head up, shoulder leverage." },
+      { label: "Block fit-ups", target: 16, notes: "Hands inside, low pad level." },
+      { label: "Pursuit angles", target: 12, notes: "Team pursuit lanes." },
+    ],
+    "Position + Team Day": [
+      { label: "Position circuit", target: 10, notes: "Role-specific station work." },
+      { label: "Special teams reps", target: 10, notes: "Snap/contain discipline." },
+      { label: "Scripted team periods", target: 8, notes: "Install + execute." },
+    ],
+  },
+  "football-7v7": {
+    "Timing + Routes Day": [
+      { label: "Timing route throws", target: 24, notes: "Rhythm and anticipation." },
+      { label: "WR release drills", target: 20, notes: "Beat press quickly." },
+      { label: "DB break drills", target: 16, notes: "Plant + drive to ball." },
+    ],
+    "Coverage + Situational Day": [
+      { label: "Red zone concepts", target: 10, notes: "Condensed spacing." },
+      { label: "Third-down scenarios", target: 10, notes: "Move chains under pressure." },
+      { label: "Turnover circuit", target: 12, notes: "Ball disruption focus." },
+    ],
+  },
+  "football-highschool": {
+    "Strength + Speed Day": [
+      { label: "Explosive lift blocks", target: 6, notes: "Coach-supervised intensity." },
+      { label: "40-yard acceleration reps", target: 10, notes: "Fast first 10 yards." },
+      { label: "Conditioning finishers", target: 6, notes: "Game-speed effort." },
+    ],
+    "Install + Film Day": [
+      { label: "Install walkthrough", target: 1, notes: "Assignment clarity." },
+      { label: "Team period reps", target: 10, notes: "Live execution." },
+      { label: "Film correction notes", target: 1, notes: "3 takeaways each session." },
+    ],
+  },
+  gymnastics: {
+    "Core Skills Day": [
+      { label: "Handstand holds / kicks", target: 16, notes: "Stacked body line." },
+      { label: "Cartwheel/roundoff reps", target: 14, notes: "Entry and landing control." },
+      { label: "Split + mobility set", target: 1, notes: "Daily flexibility block." },
+    ],
+    "Power + Routine Day": [
+      { label: "Tumble pass attempts", target: 12, notes: "Quality over quantity." },
+      { label: "Beam/bars basics", target: 12, notes: "Event confidence." },
+      { label: "Routine linking reps", target: 8, notes: "Connection timing." },
+    ],
+  },
+  soccer: {
+    "Technical Day": [
+      { label: "First touch circuits", target: 20, notes: "Both feet." },
+      { label: "Passing combinations", target: 24, notes: "One- and two-touch." },
+      { label: "Finishing reps", target: 18, notes: "Different shot angles." },
+    ],
+    "Tactical + Conditioning Day": [
+      { label: "Press/shape drills", target: 12, notes: "Compact team spacing." },
+      { label: "1v1 defending", target: 16, notes: "Force outside channel." },
+      { label: "Small-sided games", target: 8, notes: "High tempo decisions." },
+    ],
+  },
+  baseball: {
+    "Hitting Day": [
+      { label: "Tee + front toss swings", target: 40, notes: "Barrel path and timing." },
+      { label: "Live batting rounds", target: 12, notes: "Approach by count." },
+      { label: "Baserunning starts", target: 14, notes: "Read pitcher rhythm." },
+    ],
+    "Fielding + Throwing Day": [
+      { label: "Infield/outfield reps", target: 24, notes: "Footwork to throw." },
+      { label: "Throwing progression", target: 18, notes: "Arm care pacing." },
+      { label: "Double play/relay reps", target: 12, notes: "Clean transitions." },
+    ],
+  },
+  basketball: {
+    "Skill Work Day": [
+      { label: "Ball-handling series", target: 20, notes: "Both hands, game pace." },
+      { label: "Shooting spots", target: 60, notes: "Track makes by location." },
+      { label: "Finishing package reps", target: 24, notes: "Inside hand + contact." },
+    ],
+    "Game IQ + Defense Day": [
+      { label: "Closeout + slide drills", target: 20, notes: "High hands, no blow-by." },
+      { label: "PnR reads", target: 16, notes: "Decision under pressure." },
+      { label: "Transition reps", target: 12, notes: "Sprint lanes + spacing." },
+    ],
+  },
+  lacrosse: {
+    "Stick Skills Day": [
+      { label: "Wall ball routine", target: 80, notes: "Strong + weak hand." },
+      { label: "Ground ball pickups", target: 24, notes: "Scoop through traffic." },
+      { label: "Passing on the run", target: 20, notes: "Hit target in stride." },
+    ],
+    "Offense + Defense Day": [
+      { label: "Dodging reps", target: 18, notes: "Change of speed." },
+      { label: "Shooting accuracy", target: 30, notes: "Corners + quick release." },
+      { label: "Defensive footwork", target: 18, notes: "Body position + checks." },
+    ],
+  },
+};
+
+function sportLabelFromKey(key) {
+  return TRAINING_SPORT_OPTIONS.find((s) => s.key === key)?.label || "Sport";
+}
+
+function buildSportPlanSections(sportKey, opts = {}) {
+  const template = toObj(SPORT_PLAN_TEMPLATES[sportKey], {});
+  const prefixDays = opts?.prefixDays !== false;
+  const prefix = prefixDays ? `${sportLabelFromKey(sportKey)} • ` : "";
+  const next = {};
+  for (const [dayName, tasks] of Object.entries(template)) {
+    next[`${prefix}${dayName}`] = toArray(tasks).map((task, idx) => ({
+      id: `t-${sportKey}-${idx}-${uid()}`,
+      label: String(task?.label || ""),
+      target: Math.max(0, Number(task?.target) || 0),
+      notes: String(task?.notes || ""),
+    }));
+  }
+  return next;
+}
+
 const DEFAULT_PARK_PROFILES = [
   { id: "park-harbor", name: "Harbor City Skate Park", location: "Harbor City, CA", lat: 33.7903, lon: -118.2987, notes: "Concrete • street + transition" },
   { id: "park-vans", name: "Vans Off The Wall Skatepark", location: "Huntington Beach, CA", lat: 33.6589, lon: -117.9988, notes: "Concrete • street + bowl" },
@@ -119,6 +329,7 @@ const INITIAL_STORE = {
   contestBySkaterId: {},
   coachCornerBySkaterId: {},
   skateDaysBySkaterId: {},
+  trainingSportBySkaterId: { "s-1": "skate" },
   parkProfiles: DEFAULT_PARK_PROFILES,
   parkPrefsBySkaterId: {},
   appPrefs: { theme: "dark" },
@@ -497,6 +708,11 @@ function normalizeStoreShape(raw) {
       .map(([k, v]) => [String(k || ""), String(v || "")])
       .filter(([k, v]) => k && v)
   );
+  const trainingSportBySkaterId = Object.fromEntries(
+    Object.entries(toObj(src.trainingSportBySkaterId, {}))
+      .map(([k, v]) => [String(k || ""), String(v || "").trim().toLowerCase()])
+      .filter(([k, v]) => k && TRAINING_SPORT_OPTIONS.some((s) => s.key === v))
+  );
   const skateDaysBySkaterId = Object.fromEntries(
     Object.entries(toObj(src.skateDaysBySkaterId, {}))
       .map(([skaterId, list]) => [
@@ -559,6 +775,7 @@ function normalizeStoreShape(raw) {
     contestBySkaterId: toObj(src.contestBySkaterId, {}),
     coachCornerBySkaterId: toObj(src.coachCornerBySkaterId, {}),
     skateDaysBySkaterId,
+    trainingSportBySkaterId,
     parkProfiles: parkProfiles.length ? parkProfiles : INITIAL_STORE.parkProfiles,
     parkPrefsBySkaterId,
     practiceSettings: {
@@ -1586,6 +1803,7 @@ export default function SkateTrainingPlanApp() {
   const contestBySkaterId = store.contestBySkaterId || {};
   const coachCornerBySkaterId = store.coachCornerBySkaterId || {};
   const skateDaysBySkaterId = store.skateDaysBySkaterId || {};
+  const trainingSportBySkaterId = store.trainingSportBySkaterId || {};
   const parkProfiles = store.parkProfiles || DEFAULT_PARK_PROFILES;
   const parkPrefsBySkaterId = store.parkPrefsBySkaterId || {};
   const appPrefs = store.appPrefs || { theme: "dark" };
@@ -3942,7 +4160,14 @@ export default function SkateTrainingPlanApp() {
     const name = prompt("Skater name:");
     if (!name) return;
     const next = { id: `s-${uid()}`, name: name.trim(), photoUrl: "" };
-    setSlice({ skaters: [...skaters, next], ui: { ...ui, activeSkaterId: next.id } });
+    setSlice({
+      skaters: [...skaters, next],
+      trainingSportBySkaterId: {
+        ...trainingSportBySkaterId,
+        [next.id]: "skate",
+      },
+      ui: { ...ui, activeSkaterId: next.id },
+    });
     toast("Skater added", `${next.name} added.`, "success");
   };
 
@@ -3967,6 +4192,7 @@ export default function SkateTrainingPlanApp() {
       skaters: skaters.filter((s) => s.id !== skater.id),
       sessions: sessions.filter((s) => s.skaterId !== skater.id),
       skateDaysBySkaterId: Object.fromEntries(Object.entries(skateDaysBySkaterId).filter(([k]) => k !== skater.id)),
+      trainingSportBySkaterId: Object.fromEntries(Object.entries(trainingSportBySkaterId).filter(([k]) => k !== skater.id)),
       ui: {
         ...ui,
         activeSkaterId:
@@ -3998,6 +4224,14 @@ export default function SkateTrainingPlanApp() {
   const [newPlanDayName, setNewPlanDayName] = useState("");
   const [planDayNameDrafts, setPlanDayNameDrafts] = useState({});
   const [newTaskDraftByDay, setNewTaskDraftByDay] = useState({});
+  const activeSportKey = TRAINING_SPORT_OPTIONS.some((s) => s.key === trainingSportBySkaterId?.[ui.activeSkaterId])
+    ? trainingSportBySkaterId[ui.activeSkaterId]
+    : "skate";
+  const [sportTemplatePick, setSportTemplatePick] = useState(activeSportKey);
+
+  useEffect(() => {
+    setSportTemplatePick(activeSportKey);
+  }, [activeSportKey, ui.activeSkaterId]);
 
   useEffect(() => {
     const keys = Object.keys(plans || {});
@@ -4028,6 +4262,47 @@ export default function SkateTrainingPlanApp() {
       return changed ? next : prev;
     });
   }, [plans]);
+
+  const setActiveTrainingSport = (sportKey) => {
+    if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return;
+    setSlice({
+      trainingSportBySkaterId: {
+        ...trainingSportBySkaterId,
+        [ui.activeSkaterId]: sportKey,
+      },
+    });
+  };
+
+  const importSportPlanSections = (sportKey, mode = "append") => {
+    if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return;
+    const base = mode === "replace" ? {} : { ...plans };
+    const incoming = buildSportPlanSections(sportKey, { prefixDays: true });
+    const nextPlans = { ...base };
+    for (const [rawName, tasks] of Object.entries(incoming)) {
+      let dayName = rawName;
+      let copyNo = 2;
+      while (nextPlans[dayName]) {
+        dayName = `${rawName} (${copyNo})`;
+        copyNo += 1;
+      }
+      nextPlans[dayName] = tasks;
+    }
+    const nextDayType = Object.keys(nextPlans)[0] || draft.dayType || "Training Day";
+    setSlice({
+      plans: nextPlans,
+      draft: { ...draft, dayType: nextDayType },
+      trainingSportBySkaterId: {
+        ...trainingSportBySkaterId,
+        [ui.activeSkaterId]: sportKey,
+      },
+    });
+    const sportLabel = sportLabelFromKey(sportKey);
+    toast(
+      mode === "replace" ? "Training plan replaced" : "Training sections added",
+      `${sportLabel} • ${Object.keys(incoming).length} section(s)`,
+      "success"
+    );
+  };
 
   const addDayType = (nameRaw = "") => {
     const key = String(nameRaw || newPlanDayName).trim();
@@ -6275,6 +6550,63 @@ export default function SkateTrainingPlanApp() {
                   ) : (
                     <Pill tone="warn">View only</Pill>
                   )}
+                </div>
+
+                <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">Multi-Sport Training Sections</div>
+                      <div className="text-xs text-white/60">
+                        Add templates for BMX, roller, scooter, track, swimming, football, gymnastics, soccer, baseball, basketball, and lacrosse.
+                      </div>
+                    </div>
+                    <Pill tone="cyan">{sportLabelFromKey(activeSportKey)}</Pill>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-5">
+                      <div className="text-[11px] text-white/60">Sport</div>
+                      <select
+                        value={sportTemplatePick}
+                        onChange={(e) => {
+                          const next = e.target.value;
+                          setSportTemplatePick(next);
+                          setActiveTrainingSport(next);
+                        }}
+                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      >
+                        {TRAINING_SPORT_OPTIONS.map((sport) => (
+                          <option key={sport.key} value={sport.key}>
+                            {sport.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-7 flex flex-wrap items-end gap-2">
+                      {canEditPlans ? (
+                        <>
+                          <button
+                            type="button"
+                            onClick={() => importSportPlanSections(sportTemplatePick, "append")}
+                            className="rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                          >
+                            Add Sport Sections
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!confirm(`Replace current plan with ${sportLabelFromKey(sportTemplatePick)} sections?`)) return;
+                              importSportPlanSections(sportTemplatePick, "replace");
+                            }}
+                            className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                          >
+                            Replace Full Plan
+                          </button>
+                        </>
+                      ) : (
+                        <div className="text-xs text-white/60">View-only role. Ask owner/coach/skater to import sections.</div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 <div className="mt-5 space-y-3">
