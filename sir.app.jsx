@@ -45,6 +45,9 @@ import {
 } from "recharts";
 
 const STORAGE_KEY = "skateflow_clean_v1";
+const APP_NAME = "Athlete Flow";
+const APP_FILE_PREFIX = "athleteflow";
+const APP_PRACTICE_TITLE = `${APP_NAME} Practice`;
 
 const DEFAULT_PLANS = {
   "Grind Day": [
@@ -407,6 +410,16 @@ function createDefaultBetaCheck() {
   return { checkedById: {}, notesById: {}, updatedAt: "" };
 }
 
+function createDefaultProFeedback() {
+  return {
+    enabled: false,
+    priceUsd: 65,
+    paymentUrl: "",
+    instructions: "Upload a clip link and question. Pro feedback starts after payment is confirmed.",
+    requestsBySkaterId: {},
+  };
+}
+
 const MEMBER_ROLES = new Set(["owner", "coach", "dad", "skater"]);
 
 function normalizeMemberRole(value, fallback = "dad") {
@@ -429,7 +442,7 @@ const INITIAL_STORE = {
   practiceEvents: [],
   xpBySkaterId: {},
   xpMilestonesBySkaterId: {},
-  practiceSettings: { durationMin: 60, remindMin: 60, title: "SkateFlow Practice", park: "" },
+  practiceSettings: { durationMin: 60, remindMin: 60, title: APP_PRACTICE_TITLE, park: "" },
   reminders: { enabled: false, time: "17:00" },
   draft: { date: todayISO(), park: "", dayType: Object.keys(DEFAULT_PLANS)[0], completedByTaskId: {}, missedByTaskId: {} },
   auth: { loggedInMemberId: null },
@@ -450,9 +463,10 @@ const INITIAL_STORE = {
   appPrefs: { theme: "dark" },
   cloudSync: DEFAULT_CLOUD_SYNC,
   betaCheck: createDefaultBetaCheck(),
+  proFeedback: createDefaultProFeedback(),
 };
 
-const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "settings"]);
+const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "profeedback", "settings"]);
 const MEDIA_DAY_LABEL = "Media Day";
 const FREE_SKATE_KIND = "free-skate";
 const SKATE_TRIP_KIND = "skate-trip";
@@ -917,6 +931,34 @@ function normalizeStoreShape(raw) {
       ])
       .filter(([k]) => k)
   );
+  const proFeedbackSrc = { ...createDefaultProFeedback(), ...toObj(src.proFeedback, {}) };
+  const proFeedbackRequestsBySkaterId = Object.fromEntries(
+    Object.entries(toObj(proFeedbackSrc.requestsBySkaterId, {}))
+      .map(([skaterId, list]) => [
+        String(skaterId || ""),
+        toArray(list).map((item) => ({
+          id: String(item?.id || `pfr-${uid()}`),
+          skaterId: String(item?.skaterId || skaterId || ""),
+          skaterName: String(item?.skaterName || ""),
+          sportKey: normalizeSportKey(item?.sportKey || trainingSportBySkaterId?.[String(skaterId || "")] || "skate", "skate"),
+          title: String(item?.title || "").trim(),
+          question: String(item?.question || "").trim(),
+          clipUrl: normalizeExternalUrl(item?.clipUrl || ""),
+          preferredResponse: String(item?.preferredResponse || "").trim(),
+          requestedBy: String(item?.requestedBy || ""),
+          requestedByRole: String(item?.requestedByRole || ""),
+          chargeUsd: Math.max(0, Number(item?.chargeUsd) || 0),
+          paymentStatus: String(item?.paymentStatus || "").toLowerCase() === "paid" ? "paid" : "unpaid",
+          status: ["pending", "in-review", "delivered", "closed"].includes(String(item?.status || "").toLowerCase())
+            ? String(item.status).toLowerCase()
+            : "pending",
+          proReply: String(item?.proReply || ""),
+          createdAt: String(item?.createdAt || new Date().toISOString()),
+          updatedAt: String(item?.updatedAt || item?.createdAt || new Date().toISOString()),
+        })),
+      ])
+      .filter(([k]) => k)
+  );
 
   const merged = {
     ...INITIAL_STORE,
@@ -1013,6 +1055,15 @@ function normalizeStoreShape(raw) {
       checkedById: toObj(src?.betaCheck?.checkedById, {}),
       notesById: toObj(src?.betaCheck?.notesById, {}),
       updatedAt: String(src?.betaCheck?.updatedAt || ""),
+    },
+    proFeedback: {
+      ...createDefaultProFeedback(),
+      ...proFeedbackSrc,
+      enabled: !!proFeedbackSrc.enabled,
+      priceUsd: Math.max(0, Number(proFeedbackSrc.priceUsd) || 0),
+      paymentUrl: normalizeExternalUrl(proFeedbackSrc.paymentUrl || ""),
+      instructions: String(proFeedbackSrc.instructions || createDefaultProFeedback().instructions || ""),
+      requestsBySkaterId: proFeedbackRequestsBySkaterId,
     },
   };
 
@@ -1679,7 +1730,7 @@ function exportCSV(sessions) {
   });
 
   const csv = [headers.join(","), ...rows.map((r) => r.map(esc).join(","))].join("\n");
-  downloadTextFile(`skateflow-sessions-${todayISO()}.csv`, csv, "text/csv");
+  downloadTextFile(`${APP_FILE_PREFIX}-sessions-${todayISO()}.csv`, csv, "text/csv");
 }
 
 function exportICSPractice(dateISO, title, notes, opts = {}) {
@@ -1697,16 +1748,16 @@ function exportICSPractice(dateISO, title, notes, opts = {}) {
   const endLocal = new Date(startLocal.getTime() + Math.max(5, Number(durationMin) || 60) * 60 * 1000);
 
   const safeNotes = String(notes || "").replace(/\r?\n/g, " ");
-  const safeTitle = String(title || "SkateFlow Practice").replace(/\r?\n/g, " ");
+  const safeTitle = String(title || APP_PRACTICE_TITLE).replace(/\r?\n/g, " ");
   const safeLocation = String(location || "").replace(/\r?\n/g, " ");
   const alarm = Math.max(0, Number(remindMin) || 0);
   const ics = [
     "BEGIN:VCALENDAR",
     "VERSION:2.0",
-    "PRODID:-//SkateFlow//EN",
+    `PRODID:-//${APP_NAME}//EN`,
     "CALSCALE:GREGORIAN",
     "BEGIN:VEVENT",
-    `UID:${uid()}@skateflow`,
+    `UID:${uid()}@${APP_FILE_PREFIX}`,
     `DTSTAMP:${new Date().toISOString().replace(/[-:]/g, "").split(".")[0]}Z`,
     `DTSTART:${formatLocal(startLocal)}`,
     `DTEND:${formatLocal(endLocal)}`,
@@ -1726,7 +1777,7 @@ function exportICSPractice(dateISO, title, notes, opts = {}) {
     "END:VCALENDAR",
   ].join("\n");
 
-  return downloadTextFile(`skateflow-practice-${safeDate}.ics`, ics, "text/calendar");
+  return downloadTextFile(`${APP_FILE_PREFIX}-practice-${safeDate}.ics`, ics, "text/calendar");
 }
 
 function parseICSDateTime(value) {
@@ -1771,7 +1822,7 @@ function importPracticesFromICS(icsText, fallback = {}) {
 
     const dtStartRaw = get("DTSTART");
     const dtEndRaw = get("DTEND");
-    const summary = get("SUMMARY") || fallback.title || "SkateFlow Practice";
+    const summary = get("SUMMARY") || fallback.title || APP_PRACTICE_TITLE;
     const desc = get("DESCRIPTION") || "";
     const location = get("LOCATION") || fallback.park || "";
 
@@ -1855,6 +1906,7 @@ function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabK
     calendar: { light: "bg-emerald-100 text-emerald-900 ring-emerald-300", dark: "bg-emerald-500/20 text-emerald-100 ring-emerald-400/40" },
     dash: { light: "bg-amber-100 text-amber-900 ring-amber-300", dark: "bg-amber-500/20 text-amber-100 ring-amber-400/40" },
     plans: { light: "bg-indigo-100 text-indigo-900 ring-indigo-300", dark: "bg-indigo-500/20 text-indigo-100 ring-indigo-400/40" },
+    profeedback: { light: "bg-yellow-100 text-yellow-900 ring-yellow-300", dark: "bg-yellow-500/20 text-yellow-100 ring-yellow-400/40" },
     coach: { light: "bg-rose-100 text-rose-900 ring-rose-300", dark: "bg-rose-500/20 text-rose-100 ring-rose-400/40" },
     skateday: { light: "bg-teal-100 text-teal-900 ring-teal-300", dark: "bg-teal-500/20 text-teal-100 ring-teal-400/40" },
     contest: { light: "bg-orange-100 text-orange-900 ring-orange-300", dark: "bg-orange-500/20 text-orange-100 ring-orange-400/40" },
@@ -1989,7 +2041,7 @@ export default function SkateTrainingPlanApp() {
   const sessions = store.sessions || [];
   const chatBySkaterId = store.chatBySkaterId || {};
   const practiceEvents = store.practiceEvents || [];
-  const practiceSettings = store.practiceSettings || { durationMin: 60, remindMin: 60, title: "SkateFlow Practice", park: "" };
+  const practiceSettings = store.practiceSettings || { durationMin: 60, remindMin: 60, title: APP_PRACTICE_TITLE, park: "" };
   const reminders = store.reminders || { enabled: false, time: "17:00" };
   const auth = store.auth || { loggedInMemberId: null };
   const ui = store.ui || { view: "log", activeMemberId: members[0]?.id, activeSkaterId: skaters[0]?.id };
@@ -2016,6 +2068,16 @@ export default function SkateTrainingPlanApp() {
   const appPrefs = store.appPrefs || { theme: "dark" };
   const cloudSync = { ...DEFAULT_CLOUD_SYNC, ...toObj(store.cloudSync, {}) };
   const betaCheck = { ...createDefaultBetaCheck(), ...toObj(store.betaCheck, {}) };
+  const proFeedback = { ...createDefaultProFeedback(), ...toObj(store.proFeedback, {}) };
+  const proFeedbackRequestsBySkaterId = toObj(proFeedback.requestsBySkaterId, {});
+  const proFeedbackEnabled = !!proFeedback.enabled;
+  const proFeedbackAvailable = proFeedbackEnabled && activeSportKey === "skate";
+  const proFeedbackPriceUsd = Math.max(0, Number(proFeedback.priceUsd) || 0);
+  const activeProFeedbackRequests = toArray(proFeedbackRequestsBySkaterId[activeSkaterId]).slice().sort((a, b) => {
+    const aMs = Date.parse(String(a?.createdAt || "")) || 0;
+    const bMs = Date.parse(String(b?.createdAt || "")) || 0;
+    return bMs - aMs;
+  });
   const betaCheckedById = toObj(betaCheck.checkedById, {});
   const betaNotesById = toObj(betaCheck.notesById, {});
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState(() => new Date());
@@ -2115,6 +2177,7 @@ export default function SkateTrainingPlanApp() {
   const canComment = !!activeMember;
   const canEditStudentMedia = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const canManageTeam = activeMember?.role === "owner";
+  const canManageProFeedback = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const roleDisplayLabel = (role) => {
     const normalizedRole = String(role || "").trim().toLowerCase();
     if (normalizedRole === "skater") return participantLabel;
@@ -2126,7 +2189,7 @@ export default function SkateTrainingPlanApp() {
   const roleAllowedViews = useMemo(
     () =>
       isSkaterMember
-        ? new Set(["log", "cards", "calendar", "dash", "plans", "skateday", "contest", "chat"])
+        ? new Set(["log", "cards", "calendar", "dash", "plans", "skateday", "contest", "chat", "profeedback"])
         : VALID_VIEWS,
     [isSkaterMember]
   );
@@ -2144,6 +2207,12 @@ export default function SkateTrainingPlanApp() {
     park: "",
     notes: "",
   });
+  const [proFeedbackDraft, setProFeedbackDraft] = useState({
+    title: "",
+    question: "",
+    clipUrl: "",
+    preferredResponse: "Video breakdown",
+  });
 
   useEffect(() => {
     const timerId = window.setInterval(() => setCalendarNowMs(Date.now()), 30000);
@@ -2158,6 +2227,11 @@ export default function SkateTrainingPlanApp() {
     if (roleAllowedViews.has(ui.view)) return;
     setUI({ view: "log" });
   }, [roleAllowedViews, ui.view]);
+  useEffect(() => {
+    if (ui.view !== "profeedback") return;
+    if (proFeedbackAvailable) return;
+    setUI({ view: "log" });
+  }, [ui.view, proFeedbackAvailable]);
 
   const activePracticeEvents = useMemo(() => {
     const list = toArray(practiceEvents)
@@ -2305,11 +2379,11 @@ export default function SkateTrainingPlanApp() {
     const credential = await navigator.credentials.create({
       publicKey: {
         challenge,
-        rp: { name: "SkateFlow" },
+        rp: { name: APP_NAME },
         user: {
           id: userIdBytes,
-          name: `${member.id}@skateflow.local`,
-          displayName: member.name || "SkateFlow",
+          name: `${member.id}@${APP_FILE_PREFIX}.local`,
+          displayName: member.name || APP_NAME,
         },
         pubKeyCredParams: [
           { type: "public-key", alg: -7 },
@@ -3096,7 +3170,7 @@ export default function SkateTrainingPlanApp() {
   }, [cloudSyncBusy]);
 
   const exportBackupJSON = () => {
-    downloadTextFile(`skateflow-backup-${todayISO()}.json`, JSON.stringify(store, null, 2), "application/json");
+    downloadTextFile(`${APP_FILE_PREFIX}-backup-${todayISO()}.json`, JSON.stringify(store, null, 2), "application/json");
     toast("Backup exported", "JSON backup downloaded.", "success");
   };
 
@@ -3177,7 +3251,7 @@ export default function SkateTrainingPlanApp() {
         fields: {
           payload: { stringValue: payload },
           updatedAt: { timestampValue: nowIso },
-          updatedBy: { stringValue: activeMember?.name || "SkateFlow" },
+          updatedBy: { stringValue: activeMember?.name || APP_NAME },
           buildStamp: { stringValue: BUILD_STAMP },
         },
       };
@@ -3323,16 +3397,16 @@ export default function SkateTrainingPlanApp() {
           try {
             const blob = await fetch(heroSource).then((r) => r.blob());
             const ext = blob.type.startsWith("video/") ? "mp4" : "jpg";
-            const file = new File([blob], `skateflow-card.${ext}`, { type: blob.type || "application/octet-stream" });
+            const file = new File([blob], `${APP_FILE_PREFIX}-card.${ext}`, { type: blob.type || "application/octet-stream" });
             if (navigator.canShare({ files: [file] })) {
-              await navigator.share({ title: "SkateFlow Card", text, files: [file] });
+              await navigator.share({ title: `${APP_NAME} Card`, text, files: [file] });
               return;
             }
           } catch {
             // fall through to text share
           }
         }
-        await navigator.share({ title: "SkateFlow Card", text });
+        await navigator.share({ title: `${APP_NAME} Card`, text });
         return;
       }
 
@@ -4098,7 +4172,7 @@ export default function SkateTrainingPlanApp() {
       toast("No report yet", "Run Health Check first.", "warn");
       return;
     }
-    downloadTextFile(`skateflow-health-${todayISO()}.json`, JSON.stringify(healthReport, null, 2), "application/json");
+    downloadTextFile(`${APP_FILE_PREFIX}-health-${todayISO()}.json`, JSON.stringify(healthReport, null, 2), "application/json");
     toast("Health report exported", "Diagnostics JSON downloaded.", "success");
   };
 
@@ -4450,6 +4524,10 @@ export default function SkateTrainingPlanApp() {
       primarySportBySkaterId: Object.fromEntries(Object.entries(primarySportBySkaterId).filter(([k]) => k !== skater.id)),
       sportPackageBySkaterId: Object.fromEntries(Object.entries(sportPackageBySkaterId).filter(([k]) => k !== skater.id)),
       plansBySportBySkaterId: Object.fromEntries(Object.entries(plansBySportBySkaterId).filter(([k]) => k !== skater.id)),
+      proFeedback: {
+        ...proFeedback,
+        requestsBySkaterId: Object.fromEntries(Object.entries(proFeedbackRequestsBySkaterId).filter(([k]) => k !== skater.id)),
+      },
       ui: {
         ...ui,
         activeSkaterId:
@@ -4774,6 +4852,95 @@ export default function SkateTrainingPlanApp() {
     toast("Task removed", "Task deleted.", "warn");
   };
 
+  const updateProFeedback = (patch) => {
+    setSlice({
+      proFeedback: {
+        ...proFeedback,
+        ...patch,
+      },
+    });
+  };
+
+  const setProFeedbackRequestsForSkater = (skaterId, nextList) => {
+    const key = String(skaterId || "");
+    if (!key) return;
+    updateProFeedback({
+      requestsBySkaterId: {
+        ...proFeedbackRequestsBySkaterId,
+        [key]: toArray(nextList),
+      },
+    });
+  };
+
+  const submitProFeedbackRequest = () => {
+    if (!activeSkater) return;
+    if (!proFeedbackAvailable) {
+      toast("Pro feedback unavailable", "This section is currently off or not on the skateboarding profile.", "warn");
+      return;
+    }
+    const title = String(proFeedbackDraft.title || "").trim();
+    const question = String(proFeedbackDraft.question || "").trim();
+    if (!title && !question) {
+      toast("Add details", "Enter a title or question for the pro reviewer.", "warn");
+      return;
+    }
+    const clipUrl = normalizeExternalUrl(proFeedbackDraft.clipUrl || "");
+    const preferredResponse = String(proFeedbackDraft.preferredResponse || "").trim();
+    const next = {
+      id: `pfr-${uid()}`,
+      skaterId: activeSkater.id,
+      skaterName: activeSkater.name,
+      sportKey: activeSportKey,
+      title: title || "General Feedback Request",
+      question,
+      clipUrl,
+      preferredResponse,
+      requestedBy: String(activeMember?.name || ""),
+      requestedByRole: String(activeMember?.role || ""),
+      chargeUsd: proFeedbackPriceUsd,
+      paymentStatus: "unpaid",
+      status: "pending",
+      proReply: "",
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const current = toArray(proFeedbackRequestsBySkaterId[activeSkater.id]);
+    setProFeedbackRequestsForSkater(activeSkater.id, [next, ...current].slice(0, 200));
+    setProFeedbackDraft({ title: "", question: "", clipUrl: "", preferredResponse: "Video breakdown" });
+    toast("Pro feedback request saved", `Charge set to $${proFeedbackPriceUsd}. Mark paid when payment clears.`, "success");
+  };
+
+  const patchProFeedbackRequest = (requestId, patch) => {
+    if (!activeSkater) return;
+    const current = toArray(proFeedbackRequestsBySkaterId[activeSkater.id]);
+    setProFeedbackRequestsForSkater(
+      activeSkater.id,
+      current.map((item) => {
+        if (item.id !== requestId) return item;
+        const paymentRaw = String(patch?.paymentStatus ?? item?.paymentStatus ?? "").toLowerCase();
+        const statusRaw = String(patch?.status ?? item?.status ?? "").toLowerCase();
+        return {
+          ...item,
+          ...patch,
+          paymentStatus: paymentRaw === "paid" ? "paid" : "unpaid",
+          status: ["pending", "in-review", "delivered", "closed"].includes(statusRaw) ? statusRaw : "pending",
+          updatedAt: new Date().toISOString(),
+        };
+      })
+    );
+  };
+
+  const removeProFeedbackRequest = (requestId) => {
+    if (!activeSkater) return;
+    if (!confirm("Delete this pro feedback request?")) return;
+    const current = toArray(proFeedbackRequestsBySkaterId[activeSkater.id]);
+    setProFeedbackRequestsForSkater(
+      activeSkater.id,
+      current.filter((item) => item.id !== requestId)
+    );
+    toast("Request removed", "Pro feedback request deleted.", "warn");
+  };
+
   const activeChat = useMemo(() => chatBySkaterId[ui.activeSkaterId] || [], [chatBySkaterId, ui.activeSkaterId]);
   const sendChatMessage = (text) => {
     const msg = (text || "").trim();
@@ -4810,7 +4977,7 @@ export default function SkateTrainingPlanApp() {
         if (now >= remindAt && now <= eventAt + 60000) {
           reminderFiredRef.current.add(key);
           try {
-            new Notification("SkateFlow Reminder", {
+            new Notification(`${APP_NAME} Reminder`, {
               body: `${ev.title || "Practice"} • ${ev.dateISO} ${formatStandardTime(ev.time)}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || participantLabel})`,
             });
           } catch {
@@ -4833,7 +5000,7 @@ export default function SkateTrainingPlanApp() {
       return;
     }
     setSlice({ reminders: { ...reminders, enabled: true } });
-    new Notification("SkateFlow", { body: "Reminders enabled. Tip: Calendar events are most reliable." });
+    new Notification(APP_NAME, { body: "Reminders enabled. Tip: Calendar events are most reliable." });
     toast("Notifications enabled", "Browser alerts allowed.", "success");
   };
 
@@ -4848,7 +5015,7 @@ export default function SkateTrainingPlanApp() {
       time: safeTime,
       durationMin: Number(practiceSettings.durationMin) || 60,
       remindMin: Number(practiceSettings.remindMin) || 60,
-      title: practiceSettings.title || "SkateFlow Practice",
+      title: practiceSettings.title || APP_PRACTICE_TITLE,
       park: selectedParkName,
       notes: `${participantLabel}: ${activeSkater.name}\nDay: ${draft.dayType}\nPark: ${selectedParkName}`,
       skaterId: activeSkater.id,
@@ -4887,7 +5054,7 @@ export default function SkateTrainingPlanApp() {
     const safeDate = isValidISODate(String(dateOverride || "")) ? String(dateOverride) : todayISO();
     const safeTime = isValidTimeHHMM(String(reminders.time || "")) ? String(reminders.time) : "17:00";
     const selectedParkName = String(practiceSettings.park || draft.park || selectedParkProfile?.name || "").trim();
-    const selectedTitle = String(practiceSettings.title || "SkateFlow Practice").trim();
+    const selectedTitle = String(practiceSettings.title || APP_PRACTICE_TITLE).trim();
     const existing = toArray(practiceEvents).find((ev) => {
       const evSkaterId = String(ev?.skaterId || "");
       const skaterMatch = !evSkaterId || evSkaterId === activeSkater.id;
@@ -4937,7 +5104,7 @@ export default function SkateTrainingPlanApp() {
       time: isValidTimeHHMM(ev.time) ? ev.time : "17:00",
       durationMin: Math.max(5, Number(ev.durationMin) || 60),
       remindMin: Math.max(0, Number(ev.remindMin) || 60),
-      title: String(ev.title || "SkateFlow Practice"),
+      title: String(ev.title || APP_PRACTICE_TITLE),
       park: String(ev.park || ""),
       notes: String(ev.notes || ""),
     });
@@ -4963,7 +5130,7 @@ export default function SkateTrainingPlanApp() {
     const safeTime = isValidTimeHHMM(practiceEditDraft.time) ? practiceEditDraft.time : "17:00";
     const safeDuration = Math.max(5, Number(practiceEditDraft.durationMin) || 60);
     const safeRemind = Math.max(0, Number(practiceEditDraft.remindMin) || 60);
-    const safeTitle = String(practiceEditDraft.title || "").trim() || "SkateFlow Practice";
+    const safeTitle = String(practiceEditDraft.title || "").trim() || APP_PRACTICE_TITLE;
     const safePark = String(practiceEditDraft.park || "").trim();
     const safeNotes = String(practiceEditDraft.notes || "").trim();
     setSlice({
@@ -5793,7 +5960,7 @@ export default function SkateTrainingPlanApp() {
               <div className={`text-[11px] font-extrabold tracking-[0.28em] ${brandTextClass}`}>SKATEFLOW</div>
               <div className={`mt-0.5 text-[10px] ${buildTextClass}`}>Build {BUILD_STAMP}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                <div className="text-base sm:text-lg font-bold tracking-tight">Trading Card Athlete System</div>
+                <div className="text-base sm:text-lg font-bold tracking-tight">{APP_NAME}</div>
                 <Pill tone="cyan" lightMode={isLightMode}>
                   <Flame className="h-3.5 w-3.5" /> Streak {topStreak}
                 </Pill>
@@ -5881,7 +6048,7 @@ export default function SkateTrainingPlanApp() {
                 ? "mt-3 grid grid-cols-5 gap-1.5"
                 : mobileTabsOpen
                 ? "mt-3 grid grid-cols-5 gap-1.5"
-                : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-11 sm:gap-2"
+                : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-12 sm:gap-2"
             }
           >
             <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" {...tabThemeProps} onClick={() => switchView("log")} />
@@ -5889,6 +6056,7 @@ export default function SkateTrainingPlanApp() {
             <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" {...tabThemeProps} onClick={() => switchView("calendar")} />
             <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" {...tabThemeProps} onClick={() => switchView("dash")} />
             <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" {...tabThemeProps} onClick={() => switchView("plans")} />
+            {proFeedbackAvailable ? <TabButton active={ui.view === "profeedback"} tabKey="profeedback" icon={Crown} label="Pro" {...tabThemeProps} onClick={() => switchView("profeedback")} /> : null}
             {!isSkaterMember ? <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" {...tabThemeProps} onClick={() => switchView("coach")} /> : null}
             <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" {...tabThemeProps} onClick={() => switchView("skateday")} />
             <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" {...tabThemeProps} onClick={() => switchView("contest")} />
@@ -8157,6 +8325,156 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
+          {ui.view === "profeedback" && proFeedbackAvailable ? (
+            <motion.div key="profeedback" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
+              <div className="rounded-3xl bg-gradient-to-br from-zinc-950 via-black to-zinc-900 p-5 sm:p-7 shadow-2xl ring-1 ring-white/10 text-white">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs tracking-widest text-white/50">SKATEBOARDING ONLY</div>
+                    <div className="mt-1 text-xl font-extrabold">Pro Feedback • {activeSkater?.name || participantLabel}</div>
+                    <div className="mt-2 text-sm text-white/60">
+                      Submit clip links and questions for a paid pro review. Toggle this section anytime in Settings.
+                    </div>
+                  </div>
+                  <Pill tone="warn">
+                    <Crown className="h-3.5 w-3.5" /> ${proFeedbackPriceUsd}
+                  </Pill>
+                </div>
+
+                <div className="mt-4 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
+                  <div className="text-xs text-white/70">{String(proFeedback.instructions || "").trim() || "Paid pro review requests for skateboarding."}</div>
+                  {isOpenableExternalUrl(proFeedback.paymentUrl) ? (
+                    <a
+                      href={proFeedback.paymentUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white text-black px-3 py-2 text-xs font-bold hover:bg-white/90"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Open Payment Link
+                    </a>
+                  ) : null}
+                </div>
+
+                <div className="mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
+                  <div className="text-sm font-semibold">New Request</div>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={proFeedbackDraft.title}
+                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, title: e.target.value }))}
+                      placeholder="Request title (e.g., Frontside Air)"
+                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                    <select
+                      value={proFeedbackDraft.preferredResponse}
+                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, preferredResponse: e.target.value }))}
+                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    >
+                      <option value="Video breakdown">Video breakdown</option>
+                      <option value="Written notes">Written notes</option>
+                      <option value="Voice note">Voice note</option>
+                    </select>
+                    <input
+                      value={proFeedbackDraft.clipUrl}
+                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, clipUrl: e.target.value }))}
+                      placeholder="Optional clip URL"
+                      className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                    <textarea
+                      value={proFeedbackDraft.question}
+                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, question: e.target.value }))}
+                      rows={3}
+                      placeholder="What should the pro review?"
+                      className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                  </div>
+                  <div className="mt-3 flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={submitProFeedbackRequest}
+                      className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"
+                    >
+                      Submit Paid Request
+                    </button>
+                    <div className="text-xs text-white/60">Charge: ${proFeedbackPriceUsd} per request</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 space-y-3">
+                  {activeProFeedbackRequests.length ? (
+                    activeProFeedbackRequests.map((item) => (
+                      <div key={item.id} className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-bold">{item.title || "Feedback Request"}</div>
+                            <div className="text-xs text-white/60">
+                              {item.skaterName || activeSkater?.name || participantLabel} • {new Date(item.createdAt).toLocaleString()} • by {item.requestedBy || "Team"}
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Pill tone={item.paymentStatus === "paid" ? "good" : "warn"}>{item.paymentStatus === "paid" ? "Paid" : "Unpaid"}</Pill>
+                            <Pill tone={item.status === "delivered" || item.status === "closed" ? "good" : item.status === "in-review" ? "cyan" : "neutral"}>
+                              {String(item.status || "pending")}
+                            </Pill>
+                          </div>
+                        </div>
+                        {item.question ? <div className="mt-2 text-sm text-white/80 whitespace-pre-wrap">{item.question}</div> : null}
+                        {isOpenableExternalUrl(item.clipUrl) ? (
+                          <a href={item.clipUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs text-cyan-200 hover:text-cyan-100">
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            Open Clip
+                          </a>
+                        ) : null}
+                        <div className="mt-2 text-xs text-white/60">Preferred response: {item.preferredResponse || "Any"} • Charge ${Math.max(0, Number(item.chargeUsd) || 0)}</div>
+
+                        {canManageProFeedback ? (
+                          <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                            <select
+                              value={item.paymentStatus || "unpaid"}
+                              onChange={(e) => patchProFeedbackRequest(item.id, { paymentStatus: e.target.value })}
+                              className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                            >
+                              <option value="unpaid">Unpaid</option>
+                              <option value="paid">Paid</option>
+                            </select>
+                            <select
+                              value={item.status || "pending"}
+                              onChange={(e) => patchProFeedbackRequest(item.id, { status: e.target.value })}
+                              className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                            >
+                              <option value="pending">pending</option>
+                              <option value="in-review">in-review</option>
+                              <option value="delivered">delivered</option>
+                              <option value="closed">closed</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => removeProFeedbackRequest(item.id)}
+                              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                            >
+                              Delete
+                            </button>
+                            <textarea
+                              value={String(item.proReply || "")}
+                              onChange={(e) => patchProFeedbackRequest(item.id, { proReply: e.target.value })}
+                              placeholder="Pro response / notes"
+                              rows={2}
+                              className="sm:col-span-3 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                            />
+                          </div>
+                        ) : item.proReply ? (
+                          <div className="mt-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-xs whitespace-pre-wrap">{item.proReply}</div>
+                        ) : null}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-4 text-sm text-white/60">No pro feedback requests yet.</div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          ) : null}
+
           {ui.view === "settings" && !isSkaterMember ? (
             <motion.div key="settings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className={settingsPanelClass}>
@@ -8189,6 +8507,63 @@ export default function SkateTrainingPlanApp() {
                         <Upload className="h-4 w-4" /> Import Backup
                         <input type="file" accept="application/json,.json" className="hidden" onChange={(e) => importBackupFile(e.target.files?.[0])} />
                       </label>
+                    </div>
+                  </div>
+
+                  <div className={settingsCardClass}>
+                    <div className="text-sm font-semibold">Pro Feedback (Skateboarding)</div>
+                    <div className={settingsMutedTextClass}>
+                      Toggle a paid pro-review section. It only appears when the active sport is skateboarding.
+                    </div>
+                    <label className="mt-3 inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={proFeedbackEnabled}
+                        onChange={(e) => updateProFeedback({ enabled: e.target.checked })}
+                      />
+                      Enable Pro Feedback section
+                    </label>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        type="number"
+                        min="0"
+                        value={String(proFeedbackPriceUsd)}
+                        onChange={(e) => updateProFeedback({ priceUsd: Math.max(0, Number(e.target.value) || 0) })}
+                        placeholder="Charge (USD)"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <input
+                        value={String(proFeedback.paymentUrl || "")}
+                        onChange={(e) => updateProFeedback({ paymentUrl: e.target.value })}
+                        onBlur={() => updateProFeedback({ paymentUrl: normalizeExternalUrl(proFeedback.paymentUrl || "") })}
+                        placeholder="Optional payment link (Stripe, etc.)"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                    </div>
+                    <textarea
+                      value={String(proFeedback.instructions || "")}
+                      onChange={(e) => updateProFeedback({ instructions: e.target.value })}
+                      rows={2}
+                      placeholder="Instructions for families before submitting."
+                      className={
+                        "mt-2 w-full rounded-xl border px-3 py-2 text-sm " +
+                        (isLightMode
+                          ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                          : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                      }
+                    />
+                    <div className={settingsMutedTextClass}>
+                      Current state: {proFeedbackEnabled ? "ON" : "OFF"} • Charge: ${proFeedbackPriceUsd}
                     </div>
                   </div>
                 </div>
