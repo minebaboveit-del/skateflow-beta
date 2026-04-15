@@ -347,6 +347,13 @@ function resolveDraftDayTypeForPlans(planMap, currentDayType = "") {
   return Object.keys(plans)[0] || "Grind Day";
 }
 
+function participantLabelForSport(sportKey, opts = {}) {
+  const singular = normalizeSportKey(sportKey, "skate") === "skate" ? "Skater" : "Athlete";
+  const plural = singular === "Skater" ? "Skaters" : "Athletes";
+  if (opts?.plural) return opts?.lower ? plural.toLowerCase() : plural;
+  return opts?.lower ? singular.toLowerCase() : singular;
+}
+
 const DEFAULT_PARK_PROFILES = [
   { id: "park-harbor", name: "Harbor City Skate Park", location: "Harbor City, CA", lat: 33.7903, lon: -118.2987, notes: "Concrete • street + transition" },
   { id: "park-vans", name: "Vans Off The Wall Skatepark", location: "Huntington Beach, CA", lat: 33.6589, lon: -117.9988, notes: "Concrete • street + bowl" },
@@ -430,13 +437,13 @@ const GOSKATE_LISTING_API = "https://goskate.com/sp/wp-json/wp/v2/listing";
 const GOSKATE_LISTING_FIELDS = "id,link,title.rendered,property_meta.REAL_HOMES_property_location,property_meta.REAL_HOMES_property_address,modified";
 
 const BETA_CHECK_ITEMS = [
-  { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad/skater." },
+  { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad and the athlete profile role." },
   { id: "log_session", label: "Log and save session", detail: "Session saves with reps and scores." },
   { id: "media_upload", label: "Media upload", detail: "Photo/video upload works in Log and Cards." },
   { id: "media_trim", label: "Video trim/edit", detail: "Trim tool saves updated clip." },
   { id: "contest", label: "Contest run tracking", detail: "Runs, tricks, song, and media save correctly." },
   { id: "skate_day", label: "Free Skate tab", detail: "Free skate/skate trip entry and media save correctly." },
-  { id: "chat", label: "Team chat", detail: "Chat send/clear works for active skater." },
+  { id: "chat", label: "Team chat", detail: "Chat send/clear works for the active athlete profile." },
   { id: "cloud_sync", label: "Cloud sync", detail: "Push/Pull and auto sync work across devices." },
   { id: "ios_pwa", label: "iPhone home screen", detail: "App opens from Add to Home Screen." },
   { id: "light_mode", label: "Light mode readability", detail: "Text/buttons remain readable in light mode." },
@@ -1945,6 +1952,11 @@ export default function SkateTrainingPlanApp() {
   const activeSportPackage = normalizeSportPackage(sportPackageBySkaterId?.[activeSkaterId], SPORT_PACKAGE_SINGLE);
   const requestedSportKey = normalizeSportKey(trainingSportBySkaterId?.[activeSkaterId] || primarySportKey, primarySportKey);
   const activeSportKey = activeSportPackage === SPORT_PACKAGE_MULTI ? requestedSportKey : primarySportKey;
+  const participantLabel = participantLabelForSport(activeSportKey);
+  const participantLabelLower = participantLabel.toLowerCase();
+  const participantPluralLabel = participantLabelForSport(activeSportKey, { plural: true });
+  const participantPluralLabelLower = participantPluralLabel.toLowerCase();
+  const skaterRoleHint = participantLabel === "Skater" ? "" : " (use skater for athlete)";
   const plansFromSportMap = toObj(toObj(plansBySportBySkaterId?.[activeSkaterId], {})[activeSportKey], {});
   const plans = Object.keys(plansFromSportMap).length ? plansFromSportMap : toObj(store.plans, DEFAULT_PLANS);
   const draft = store.draft || { date: todayISO(), park: "", dayType: Object.keys(plans)[0], completedByTaskId: {}, missedByTaskId: {} };
@@ -2057,6 +2069,14 @@ export default function SkateTrainingPlanApp() {
   const canComment = !!activeMember;
   const canEditStudentMedia = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const canManageTeam = activeMember?.role === "owner";
+  const roleDisplayLabel = (role) => {
+    const normalizedRole = String(role || "").trim().toLowerCase();
+    if (normalizedRole === "skater") return participantLabel;
+    if (normalizedRole === "owner") return "Owner";
+    if (normalizedRole === "coach") return "Coach";
+    if (normalizedRole === "dad") return "Dad";
+    return normalizedRole || "Member";
+  };
   const roleAllowedViews = useMemo(
     () =>
       isSkaterMember
@@ -3848,7 +3868,12 @@ export default function SkateTrainingPlanApp() {
     const dupSkaterCount = skaterIds.length - skaterSet.size;
 
     addCheck("members_present", "Members exist", memberIds.length ? "pass" : "fail", memberIds.length ? `${memberIds.length} member(s)` : "No members found");
-    addCheck("skaters_present", "Skaters exist", skaterIds.length ? "pass" : "fail", skaterIds.length ? `${skaterIds.length} skater(s)` : "No skaters found");
+    addCheck(
+      "skaters_present",
+      `${participantPluralLabel} exist`,
+      skaterIds.length ? "pass" : "fail",
+      skaterIds.length ? `${skaterIds.length} ${participantLabelLower}(s)` : `No ${participantPluralLabelLower} found`
+    );
     addCheck(
       "unique_member_ids",
       "Member IDs unique",
@@ -3857,15 +3882,20 @@ export default function SkateTrainingPlanApp() {
     );
     addCheck(
       "unique_skater_ids",
-      "Skater IDs unique",
+      `${participantLabel} IDs unique`,
       dupSkaterCount ? "fail" : "pass",
-      dupSkaterCount ? `${dupSkaterCount} duplicate skater ID(s)` : "No duplicates"
+      dupSkaterCount ? `${dupSkaterCount} duplicate ${participantLabelLower} ID(s)` : "No duplicates"
     );
 
     const activeMemberOk = memberSet.has(String(ui2.activeMemberId || ""));
     const activeSkaterOk = skaterSet.has(String(ui2.activeSkaterId || ""));
     addCheck("active_member", "Active member is valid", activeMemberOk ? "pass" : "warn", activeMemberOk ? String(ui2.activeMemberId || "") : "Active member missing");
-    addCheck("active_skater", "Active skater is valid", activeSkaterOk ? "pass" : "warn", activeSkaterOk ? String(ui2.activeSkaterId || "") : "Active skater missing");
+    addCheck(
+      "active_skater",
+      `Active ${participantLabelLower} is valid`,
+      activeSkaterOk ? "pass" : "warn",
+      activeSkaterOk ? String(ui2.activeSkaterId || "") : `Active ${participantLabelLower} missing`
+    );
 
     addCheck(
       "ui_view_valid",
@@ -3901,9 +3931,9 @@ export default function SkateTrainingPlanApp() {
     }
     addCheck(
       "session_skater_links",
-      "Sessions reference valid skaters",
+      `Sessions reference valid ${participantPluralLabelLower}`,
       sessionMissingSkater ? "warn" : "pass",
-      sessionMissingSkater ? `${sessionMissingSkater} session(s) reference missing skater IDs` : "All linked"
+      sessionMissingSkater ? `${sessionMissingSkater} session(s) reference missing ${participantLabelLower} IDs` : "All linked"
     );
     addCheck(
       "session_totals",
@@ -3946,7 +3976,7 @@ export default function SkateTrainingPlanApp() {
     const unknownXPKeys = Object.keys(xpBySkater2).filter((k) => !skaterSet.has(String(k)));
     addCheck(
       "xp_keys",
-      "XP map keys match skaters",
+      `XP map keys match ${participantPluralLabelLower}`,
       unknownXPKeys.length ? "warn" : "pass",
       unknownXPKeys.length ? `${unknownXPKeys.length} orphan XP key(s)` : "XP map clean"
     );
@@ -3956,19 +3986,19 @@ export default function SkateTrainingPlanApp() {
     const unknownSkateDayKeys = Object.keys(skateDaysBySkater2).filter((k) => !skaterSet.has(String(k)));
     addCheck(
       "contest_keys",
-      "Contest map keys match skaters",
+      `Contest map keys match ${participantPluralLabelLower}`,
       unknownContestKeys.length ? "warn" : "pass",
       unknownContestKeys.length ? `${unknownContestKeys.length} orphan contest key(s)` : "Contest map clean"
     );
     addCheck(
       "coach_keys",
-      "Coach map keys match skaters",
+      `Coach map keys match ${participantPluralLabelLower}`,
       unknownCoachKeys.length ? "warn" : "pass",
       unknownCoachKeys.length ? `${unknownCoachKeys.length} orphan coach key(s)` : "Coach map clean"
     );
     addCheck(
       "skateday_keys",
-      "Skate day map keys match skaters",
+      `Skate day map keys match ${participantPluralLabelLower}`,
       unknownSkateDayKeys.length ? "warn" : "pass",
       unknownSkateDayKeys.length ? `${unknownSkateDayKeys.length} orphan skate day key(s)` : "Skate day map clean"
     );
@@ -4318,7 +4348,7 @@ export default function SkateTrainingPlanApp() {
   };
 
   const addSkater = () => {
-    const name = prompt("Skater name:");
+    const name = prompt(`${participantLabel} name:`);
     if (!name) return;
     const next = { id: `s-${uid()}`, name: name.trim(), photoUrl: "" };
     const defaultSport = "skate";
@@ -4346,18 +4376,18 @@ export default function SkateTrainingPlanApp() {
       plans: nextPlansForSkater[defaultSport],
       ui: { ...ui, activeSkaterId: next.id },
     });
-    toast("Skater added", `${next.name} added.`, "success");
+    toast(`${participantLabel} added`, `${next.name} added.`, "success");
   };
 
   const renameSkater = (skater) => {
-    const name = prompt("Rename skater:", skater.name);
+    const name = prompt(`Rename ${participantLabelLower}:`, skater.name);
     if (!name) return;
     const nextName = name.trim();
     setSlice({
       skaters: skaters.map((s) => (s.id === skater.id ? { ...s, name: nextName } : s)),
       sessions: sessions.map((sess) => (sess.skaterId === skater.id ? { ...sess, skaterName: nextName } : sess)),
     });
-    toast("Skater renamed", `Updated to ${nextName}.`, "info");
+    toast(`${participantLabel} renamed`, `Updated to ${nextName}.`, "info");
   };
 
   const deleteSkater = (skater) => {
@@ -4380,7 +4410,7 @@ export default function SkateTrainingPlanApp() {
           ui.activeSkaterId === skater.id ? (skaters.find((s) => s.id !== skater.id)?.id || skaters[0]?.id) : ui.activeSkaterId,
       },
     });
-    toast("Skater removed", `${skater.name} removed.`, "warn");
+    toast(`${participantLabel} removed`, `${skater.name} removed.`, "warn");
   };
 
   const uploadSkaterPhoto = async (skater, file) => {
@@ -4498,7 +4528,7 @@ export default function SkateTrainingPlanApp() {
     toast(
       nextPackage === SPORT_PACKAGE_MULTI ? "Multi-sport unlocked" : "Single-sport package active",
       nextPackage === SPORT_PACKAGE_MULTI
-        ? "This skater can now keep separate plans for multiple sports."
+        ? `This ${participantLabelLower} can now keep separate plans for multiple sports.`
         : `${sportLabelFromKey(nextPrimarySport)} remains active. Upgrade to multi package for multiple sports.`,
       "info"
     );
@@ -4538,7 +4568,7 @@ export default function SkateTrainingPlanApp() {
   const setActiveTrainingSport = (sportKey) => {
     if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return false;
     if (!canUseMultiSportPackage && sportKey !== primarySportKey) {
-      toast("Multi package required", "Upgrade this skater to multi package to use more than one sport.", "warn");
+      toast("Multi package required", `Upgrade this ${participantLabelLower} to multi package to use more than one sport.`, "warn");
       return false;
     }
     const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
@@ -4565,7 +4595,7 @@ export default function SkateTrainingPlanApp() {
   const importSportPlanSections = (sportKey, mode = "append") => {
     if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return;
     if (!canUseMultiSportPackage && sportKey !== primarySportKey) {
-      toast("Multi package required", "Upgrade this skater to multi package to import extra sport sections.", "warn");
+      toast("Multi package required", `Upgrade this ${participantLabelLower} to multi package to import extra sport sections.`, "warn");
       return;
     }
     const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
@@ -4735,7 +4765,7 @@ export default function SkateTrainingPlanApp() {
           reminderFiredRef.current.add(key);
           try {
             new Notification("SkateFlow Reminder", {
-              body: `${ev.title || "Practice"} • ${ev.dateISO} ${formatStandardTime(ev.time)}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || "Skater"})`,
+              body: `${ev.title || "Practice"} • ${ev.dateISO} ${formatStandardTime(ev.time)}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || participantLabel})`,
             });
           } catch {
             // ignore notification failures
@@ -4744,7 +4774,7 @@ export default function SkateTrainingPlanApp() {
       }
     }, 30000);
     return () => window.clearInterval(timerId);
-  }, [reminders.enabled, activePracticeEvents, practiceSettings.remindMin, activeSkater?.name]);
+  }, [reminders.enabled, activePracticeEvents, practiceSettings.remindMin, activeSkater?.name, participantLabel]);
 
   const enableNotifications = async () => {
     if (!("Notification" in window)) {
@@ -4774,7 +4804,7 @@ export default function SkateTrainingPlanApp() {
       remindMin: Number(practiceSettings.remindMin) || 60,
       title: practiceSettings.title || "SkateFlow Practice",
       park: selectedParkName,
-      notes: `Skater: ${activeSkater.name}\nDay: ${draft.dayType}\nPark: ${selectedParkName}`,
+      notes: `${participantLabel}: ${activeSkater.name}\nDay: ${draft.dayType}\nPark: ${selectedParkName}`,
       skaterId: activeSkater.id,
       skaterName: activeSkater.name,
       createdAt: new Date().toISOString(),
@@ -5734,7 +5764,7 @@ export default function SkateTrainingPlanApp() {
                   </Pill>
                 ) : activeMember?.role === "skater" ? (
                   <Pill tone="cyan" lightMode={isLightMode}>
-                    <Users className="h-3.5 w-3.5" /> Skater
+                    <Users className="h-3.5 w-3.5" /> {participantLabel}
                   </Pill>
                 ) : (
                   <Pill tone="neutral" lightMode={isLightMode}>
@@ -5772,7 +5802,7 @@ export default function SkateTrainingPlanApp() {
                   "rounded-xl border px-3 py-2 text-sm " +
                   (isLightMode ? "border-slate-300 bg-white text-slate-800" : "border-white/10 bg-white/5")
                 }
-                title="Active skater"
+                title={`Active ${participantLabelLower}`}
               >
                 {skaters.map((s) => (
                   <option key={s.id} value={s.id}>
@@ -6779,7 +6809,7 @@ export default function SkateTrainingPlanApp() {
                       <div className={`h-full flex items-center justify-center text-sm ${isLightMode ? "text-slate-600" : "text-white/60"}`}>No park data yet.</div>
                     )}
                   </div>
-                  <div className="mt-2 text-xs text-white/60">Top parks by session count for this skater.</div>
+                  <div className="mt-2 text-xs text-white/60">Top parks by session count for this {participantLabelLower}.</div>
                 </div>
               </div>
 
@@ -6821,7 +6851,7 @@ export default function SkateTrainingPlanApp() {
                   <div>
                     <div className="text-xs tracking-widest text-white/50">PROGRAM</div>
                     <div className="mt-1 text-xl font-extrabold">Training Plans</div>
-                    <div className="mt-2 text-sm text-white/60">Owner + Coach + Skater can edit. Dad can view/log.</div>
+                    <div className="mt-2 text-sm text-white/60">Owner + Coach + {participantLabel} can edit. Dad can view/log.</div>
                   </div>
                   {canEditPlans ? (
                     <div className="flex flex-wrap items-center gap-2">
@@ -6932,13 +6962,13 @@ export default function SkateTrainingPlanApp() {
                           </button>
                         </>
                       ) : (
-                        <div className="text-xs text-white/60">View-only role. Ask owner/coach/skater to import sections.</div>
+                        <div className="text-xs text-white/60">View-only role. Ask owner/coach/{participantLabelLower} to import sections.</div>
                       )}
                     </div>
                   </div>
                   {!canUseMultiSportPackage ? (
                     <div className="mt-3 text-xs text-amber-200">
-                      Multi-sport is locked for this skater. Upgrade to Multi Sport package to maintain separate plans for additional sports.
+                      Multi-sport is locked for this {participantLabelLower}. Upgrade to Multi Sport package to maintain separate plans for additional sports.
                     </div>
                   ) : null}
                 </div>
@@ -7073,7 +7103,7 @@ export default function SkateTrainingPlanApp() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">COACH CORNER</div>
-                    <div className="mt-1 text-xl font-extrabold">Demo Library • {activeSkater?.name || "Skater"}</div>
+                    <div className="mt-1 text-xl font-extrabold">Demo Library • {activeSkater?.name || participantLabel}</div>
                     <div className="mt-2 text-sm text-white/60">Coach, parent, or owner can upload trick demos and link them to plan tricks.</div>
                   </div>
                   <Pill tone="neutral">{activeCoachItems.length} demos</Pill>
@@ -7348,7 +7378,7 @@ export default function SkateTrainingPlanApp() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">FREE SKATE</div>
-                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || "Skater"} Free Skate + Skate Trips</div>
+                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || participantLabel} Free Skate + Skate Trips</div>
                     <div className="mt-2 text-sm text-white/60">Track free skate sessions and skate trips with park details, notes, photos, and videos.</div>
                   </div>
                   <Pill tone="neutral">{activeSkateDays.length} entry{activeSkateDays.length === 1 ? "" : "ies"}</Pill>
@@ -7429,7 +7459,7 @@ export default function SkateTrainingPlanApp() {
                         checked={!!skateDayDraft.withSkater}
                         onChange={(e) => setSkateDayDraft((p) => ({ ...p, withSkater: e.target.checked }))}
                       />
-                      {activeSkater?.name || "Skater"} attended
+                      {activeSkater?.name || participantLabel} attended
                     </label>
                   </div>
 
@@ -7493,7 +7523,7 @@ export default function SkateTrainingPlanApp() {
                               checked={!!day.withSkater}
                               onChange={(e) => updateSkateDayEntry(day.id, { withSkater: e.target.checked })}
                             />
-                            {activeSkater?.name || "Skater"} attended
+                            {activeSkater?.name || participantLabel} attended
                           </label>
                         </div>
 
@@ -7561,7 +7591,7 @@ export default function SkateTrainingPlanApp() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">CONTEST MODE</div>
-                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || "Skater"} Runs</div>
+                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || participantLabel} Runs</div>
                     <div className="mt-2 text-sm text-white/60">Track rounds, runs, trick lines, scores, media, and reorder by heat time.</div>
                   </div>
                   <button type="button" onClick={addContestRun} className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90">
@@ -7836,7 +7866,7 @@ export default function SkateTrainingPlanApp() {
                         onClick={() => {
                           const name = prompt("Member name:");
                           if (!name) return;
-                          const role = normalizeMemberRole(prompt("Role (owner/coach/dad/skater):", "dad"), "dad");
+                          const role = normalizeMemberRole(prompt(`Role (owner/coach/dad/skater)${skaterRoleHint}:`, "dad"), "dad");
                           const pin = sanitizePin(prompt("Set PIN (required, exactly 4 digits):", "") || "");
                           if (pin.length !== 4) {
                             alert("PIN must be exactly 4 digits.");
@@ -7844,7 +7874,7 @@ export default function SkateTrainingPlanApp() {
                           }
                           const m = { id: `m-${uid()}`, name: name.trim(), role, pin, photoUrl: "", biometricCredentialId: "" };
                           setSlice({ members: [...members, m] });
-                          toast("Member added", `${m.name} (${m.role}) added.`, "success");
+                          toast("Member added", `${m.name} (${roleDisplayLabel(m.role)}) added.`, "success");
                         }}
                         className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"
                       >
@@ -7862,7 +7892,7 @@ export default function SkateTrainingPlanApp() {
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="text-sm font-bold truncate">{m.name}</div>
-                                <div className="text-xs text-white/60 mt-1">Role: {m.role} • PIN: {m.pin ? "set" : "missing"}</div>
+                                <div className="text-xs text-white/60 mt-1">Role: {roleDisplayLabel(m.role)} • PIN: {m.pin ? "set" : "missing"}</div>
                               </div>
                             </div>
 
@@ -7883,7 +7913,7 @@ export default function SkateTrainingPlanApp() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const nextRoleInput = prompt("Role (owner/coach/dad/skater):", m.role);
+                                  const nextRoleInput = prompt(`Role (owner/coach/dad/skater)${skaterRoleHint}:`, m.role);
                                   if (nextRoleInput == null) return;
                                   const nextRole = normalizeMemberRole(nextRoleInput, m.role || "dad");
                                   if (!nextRole) return;
@@ -7962,7 +7992,7 @@ export default function SkateTrainingPlanApp() {
                 )}
 
                 <div className="mt-5 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
-                  <div className="text-sm font-semibold">Skater Profiles</div>
+                  <div className="text-sm font-semibold">{participantPluralLabel} Profiles</div>
                   <div className="mt-3 space-y-2">
                     {skaters.map((s) => (
                       <div key={s.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
@@ -7995,7 +8025,7 @@ export default function SkateTrainingPlanApp() {
                   </div>
                   <div className="mt-3">
                     <button type="button" onClick={addSkater} className="rounded-2xl bg-gradient-to-r from-cyan-400 to-emerald-300 text-black px-4 py-2 text-sm font-extrabold hover:opacity-95">
-                      <Plus className="h-4 w-4 inline-block mr-2" /> Add Skater
+                      <Plus className="h-4 w-4 inline-block mr-2" /> Add {participantLabel}
                     </button>
                   </div>
                 </div>
@@ -8009,7 +8039,7 @@ export default function SkateTrainingPlanApp() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">TEAM CHAT</div>
-                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || "Skater"} Chat</div>
+                    <div className="mt-1 text-xl font-extrabold">{activeSkater?.name || participantLabel} Chat</div>
                     <div className="mt-2 text-sm text-white/60">Local-only chat on this device.</div>
                   </div>
                   <Pill tone="neutral">
@@ -8049,7 +8079,7 @@ export default function SkateTrainingPlanApp() {
                         <div key={m.id} className="rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-xs text-white/60">
-                              <span className="font-bold text-white">{m.by || ""}</span> • {m.role || ""}
+                              <span className="font-bold text-white">{m.by || ""}</span> • {roleDisplayLabel(m.role)}
                             </div>
                             <div className="text-[11px] text-white/40">{new Date(m.at).toLocaleString()}</div>
                           </div>
@@ -8066,7 +8096,7 @@ export default function SkateTrainingPlanApp() {
                       <button
                         type="button"
                         onClick={() => {
-                          if (!confirm("Clear chat for this skater on this device?")) return;
+                          if (!confirm(`Clear chat for this ${participantLabelLower} on this device?`)) return;
                           setSlice({ chatBySkaterId: { ...chatBySkaterId, [ui.activeSkaterId]: [] } });
                           toast("Chat cleared", "This device chat history was cleared.", "warn");
                         }}
