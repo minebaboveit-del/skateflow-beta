@@ -82,6 +82,7 @@ const TRAINING_SPORT_OPTIONS = [
   { key: "baseball", label: "Baseball" },
   { key: "basketball", label: "Basketball" },
   { key: "lacrosse", label: "Lacrosse" },
+  { key: "martial-arts", label: "Martial Arts" },
 ];
 
 const SPORT_PACKAGE_SINGLE = "single";
@@ -255,6 +256,18 @@ const SPORT_PLAN_TEMPLATES = {
       { label: "Dodging reps", target: 18, notes: "Change of speed." },
       { label: "Shooting accuracy", target: 30, notes: "Corners + quick release." },
       { label: "Defensive footwork", target: 18, notes: "Body position + checks." },
+    ],
+  },
+  "martial-arts": {
+    "Technique Day": [
+      { label: "Stance + footwork rounds", target: 16, notes: "Balance, guard, clean movement." },
+      { label: "Strike/kick form reps", target: 24, notes: "Precision and controlled power." },
+      { label: "Defense drill rounds", target: 14, notes: "Block, slip, and counter timing." },
+    ],
+    "Spar + Conditioning Day": [
+      { label: "Partner combo rounds", target: 12, notes: "Light contact and control." },
+      { label: "Reaction/counter drills", target: 14, notes: "See cue, respond fast." },
+      { label: "Core + cardio finish", target: 1, notes: "15-20 min conditioning block." },
     ],
   },
 };
