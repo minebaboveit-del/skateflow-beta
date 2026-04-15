@@ -83,6 +83,8 @@ const TRAINING_SPORT_OPTIONS = [
   { key: "basketball", label: "Basketball" },
   { key: "lacrosse", label: "Lacrosse" },
   { key: "martial-arts", label: "Martial Arts" },
+  { key: "surfing", label: "Surfing" },
+  { key: "snowboarding", label: "Snowboarding" },
 ];
 
 const SPORT_PACKAGE_SINGLE = "single";
@@ -268,6 +270,30 @@ const SPORT_PLAN_TEMPLATES = {
       { label: "Partner combo rounds", target: 12, notes: "Light contact and control." },
       { label: "Reaction/counter drills", target: 14, notes: "See cue, respond fast." },
       { label: "Core + cardio finish", target: 1, notes: "15-20 min conditioning block." },
+    ],
+  },
+  surfing: {
+    "Paddle + Pop-Up Day": [
+      { label: "Paddle endurance intervals", target: 10, notes: "Strong catch and long strokes." },
+      { label: "Pop-up speed reps", target: 20, notes: "Explosive feet placement." },
+      { label: "Wave entry timing reps", target: 14, notes: "Commit early and angle in." },
+    ],
+    "Turns + Flow Day": [
+      { label: "Bottom turn practice", target: 16, notes: "Compress then drive through." },
+      { label: "Top turn control reps", target: 14, notes: "Eyes and shoulders lead." },
+      { label: "Linking maneuvers", target: 10, notes: "Flow without stalling." },
+    ],
+  },
+  snowboarding: {
+    "Edge Control Day": [
+      { label: "Heel/toe edge transitions", target: 20, notes: "Smooth edge changes." },
+      { label: "Carving laps", target: 14, notes: "Pressure through turns." },
+      { label: "Stopping + speed control", target: 16, notes: "Confident braking on slope." },
+    ],
+    "Park + Skills Day": [
+      { label: "Ollie / flat-ground pop", target: 18, notes: "Stable stance on landing." },
+      { label: "Box/rail approach reps", target: 12, notes: "Straight line entry and exit." },
+      { label: "Small jump timing reps", target: 12, notes: "Absorb and land centered." },
     ],
   },
 };
