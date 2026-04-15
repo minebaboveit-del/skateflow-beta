@@ -84,6 +84,9 @@ const TRAINING_SPORT_OPTIONS = [
   { key: "lacrosse", label: "Lacrosse" },
 ];
 
+const SPORT_PACKAGE_SINGLE = "single";
+const SPORT_PACKAGE_MULTI = "multi";
+
 const SPORT_PLAN_TEMPLATES = {
   skate: DEFAULT_PLANS,
   bmx: {
@@ -260,6 +263,18 @@ function sportLabelFromKey(key) {
   return TRAINING_SPORT_OPTIONS.find((s) => s.key === key)?.label || "Sport";
 }
 
+function normalizeSportKey(value, fallback = "skate") {
+  const key = String(value || "").trim().toLowerCase();
+  if (TRAINING_SPORT_OPTIONS.some((s) => s.key === key)) return key;
+  const fallbackKey = String(fallback || "").trim().toLowerCase();
+  if (TRAINING_SPORT_OPTIONS.some((s) => s.key === fallbackKey)) return fallbackKey;
+  return "skate";
+}
+
+function normalizeSportPackage(value, fallback = SPORT_PACKAGE_SINGLE) {
+  return String(value || "").trim().toLowerCase() === SPORT_PACKAGE_MULTI ? SPORT_PACKAGE_MULTI : fallback;
+}
+
 function buildSportPlanSections(sportKey, opts = {}) {
   const template = toObj(SPORT_PLAN_TEMPLATES[sportKey], {});
   const prefixDays = opts?.prefixDays !== false;
@@ -274,6 +289,49 @@ function buildSportPlanSections(sportKey, opts = {}) {
     }));
   }
   return next;
+}
+
+function normalizePlansMap(inputPlans, fallbackPlans = DEFAULT_PLANS) {
+  const base = toObj(inputPlans, {});
+  const out = {};
+  for (const [dayNameRaw, tasks] of Object.entries(base)) {
+    const dayName = String(dayNameRaw || "").trim();
+    if (!dayName) continue;
+    out[dayName] = toArray(tasks).map((task, idx) => ({
+      id: String(task?.id || `t-${uid()}`),
+      label: String(task?.label || `Task ${idx + 1}`),
+      target: Math.max(0, Number(task?.target) || 0),
+      notes: String(task?.notes || ""),
+    }));
+  }
+  if (Object.keys(out).length) return out;
+
+  const fallback = toObj(fallbackPlans, {});
+  const fallbackOut = {};
+  for (const [dayNameRaw, tasks] of Object.entries(fallback)) {
+    const dayName = String(dayNameRaw || "").trim();
+    if (!dayName) continue;
+    fallbackOut[dayName] = toArray(tasks).map((task, idx) => ({
+      id: String(task?.id || `t-${uid()}`),
+      label: String(task?.label || `Task ${idx + 1}`),
+      target: Math.max(0, Number(task?.target) || 0),
+      notes: String(task?.notes || ""),
+    }));
+  }
+  return Object.keys(fallbackOut).length ? fallbackOut : { "Training Day": [] };
+}
+
+function defaultPlansForSport(sportKey) {
+  const normalizedSportKey = normalizeSportKey(sportKey, "skate");
+  return normalizePlansMap(buildSportPlanSections(normalizedSportKey, { prefixDays: false }), DEFAULT_PLANS);
+}
+
+function resolveDraftDayTypeForPlans(planMap, currentDayType = "") {
+  const plans = toObj(planMap, {});
+  const dayType = String(currentDayType || "");
+  if (dayType === MEDIA_DAY_LABEL) return MEDIA_DAY_LABEL;
+  if (dayType && plans[dayType]) return dayType;
+  return Object.keys(plans)[0] || "Grind Day";
 }
 
 const DEFAULT_PARK_PROFILES = [
@@ -315,7 +373,7 @@ const INITIAL_STORE = {
     { id: "m-4", name: "Conner", role: "skater", pin: "", photoUrl: "", biometricCredentialId: "" },
   ],
   skaters: [{ id: "s-1", name: "Conner", photoUrl: "" }],
-  plans: DEFAULT_PLANS,
+  plans: normalizePlansMap(DEFAULT_PLANS, DEFAULT_PLANS),
   sessions: [],
   chatBySkaterId: {},
   practiceEvents: [],
@@ -330,6 +388,13 @@ const INITIAL_STORE = {
   coachCornerBySkaterId: {},
   skateDaysBySkaterId: {},
   trainingSportBySkaterId: { "s-1": "skate" },
+  primarySportBySkaterId: { "s-1": "skate" },
+  sportPackageBySkaterId: { "s-1": SPORT_PACKAGE_SINGLE },
+  plansBySportBySkaterId: {
+    "s-1": {
+      skate: normalizePlansMap(DEFAULT_PLANS, DEFAULT_PLANS),
+    },
+  },
   parkProfiles: DEFAULT_PARK_PROFILES,
   parkPrefsBySkaterId: {},
   appPrefs: { theme: "dark" },
@@ -598,7 +663,7 @@ function guardUploadFiles(fileList, opts = {}) {
 
 function normalizeStoreShape(raw) {
   const src = toObj(raw, {});
-  const plans = toObj(src.plans, DEFAULT_PLANS);
+  const legacyPlans = normalizePlansMap(src.plans, DEFAULT_PLANS);
   const skaters = toArray(src.skaters)
     .map((s) => ({
       id: String(s?.id || `s-${uid()}`),
@@ -650,7 +715,7 @@ function normalizeStoreShape(raw) {
       skaterId: String(s?.skaterId || skaters[0]?.id || ""),
       skaterName: String(s?.skaterName || skaters[0]?.name || ""),
       date: String(s?.date || todayISO()),
-      dayType: String(s?.dayType || Object.keys(plans)[0] || "Grind Day"),
+      dayType: String(s?.dayType || Object.keys(legacyPlans)[0] || "Grind Day"),
       park: String(s?.park || ""),
       tasks,
       totalTarget: Math.max(0, Number(s?.totalTarget) || tasks.reduce((sum, t) => sum + (Number(t.target) || 0), 0)),
@@ -710,9 +775,48 @@ function normalizeStoreShape(raw) {
   );
   const trainingSportBySkaterId = Object.fromEntries(
     Object.entries(toObj(src.trainingSportBySkaterId, {}))
-      .map(([k, v]) => [String(k || ""), String(v || "").trim().toLowerCase()])
-      .filter(([k, v]) => k && TRAINING_SPORT_OPTIONS.some((s) => s.key === v))
+      .map(([k, v]) => [String(k || ""), normalizeSportKey(v, "skate")])
+      .filter(([k]) => k)
   );
+  const primarySportBySkaterId = Object.fromEntries(
+    Object.entries(toObj(src.primarySportBySkaterId, {}))
+      .map(([k, v]) => [String(k || ""), normalizeSportKey(v, "skate")])
+      .filter(([k]) => k)
+  );
+  const sportPackageBySkaterId = Object.fromEntries(
+    Object.entries(toObj(src.sportPackageBySkaterId, {}))
+      .map(([k, v]) => [String(k || ""), normalizeSportPackage(v, SPORT_PACKAGE_SINGLE)])
+      .filter(([k]) => k)
+  );
+  const rawPlansBySportBySkaterId = toObj(src.plansBySportBySkaterId, {});
+  const plansBySportBySkaterId = {};
+  for (const skater of skaters.length ? skaters : INITIAL_STORE.skaters) {
+    const skaterId = String(skater?.id || "");
+    if (!skaterId) continue;
+    const activeSport = normalizeSportKey(trainingSportBySkaterId[skaterId], "skate");
+    const primarySport = normalizeSportKey(primarySportBySkaterId[skaterId] || activeSport, activeSport);
+    const packageTier = normalizeSportPackage(sportPackageBySkaterId[skaterId], SPORT_PACKAGE_SINGLE);
+    const rawBySport = toObj(rawPlansBySportBySkaterId[skaterId], {});
+    const nextBySport = {};
+    for (const [sportKeyRaw, planMap] of Object.entries(rawBySport)) {
+      const sportKey = String(sportKeyRaw || "").trim().toLowerCase();
+      if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) continue;
+      nextBySport[sportKey] = normalizePlansMap(planMap, {});
+    }
+    if (!Object.keys(nextBySport).length) {
+      nextBySport[activeSport] = normalizePlansMap(legacyPlans, DEFAULT_PLANS);
+    }
+    if (!nextBySport[primarySport]) {
+      nextBySport[primarySport] = normalizePlansMap(nextBySport[activeSport], DEFAULT_PLANS);
+    }
+    if (!nextBySport[activeSport]) {
+      nextBySport[activeSport] = normalizePlansMap(nextBySport[primarySport], DEFAULT_PLANS);
+    }
+    trainingSportBySkaterId[skaterId] = packageTier === SPORT_PACKAGE_MULTI ? activeSport : primarySport;
+    primarySportBySkaterId[skaterId] = primarySport;
+    sportPackageBySkaterId[skaterId] = packageTier;
+    plansBySportBySkaterId[skaterId] = nextBySport;
+  }
   const skateDaysBySkaterId = Object.fromEntries(
     Object.entries(toObj(src.skateDaysBySkaterId, {}))
       .map(([skaterId, list]) => [
@@ -753,7 +857,7 @@ function normalizeStoreShape(raw) {
     ...src,
     members: members.length ? members : INITIAL_STORE.members,
     skaters: skaters.length ? skaters : INITIAL_STORE.skaters,
-    plans,
+    plans: legacyPlans,
     sessions,
     chatBySkaterId: toObj(src.chatBySkaterId, {}),
     practiceEvents: toArray(src.practiceEvents).map((ev) => ({
@@ -776,6 +880,9 @@ function normalizeStoreShape(raw) {
     coachCornerBySkaterId: toObj(src.coachCornerBySkaterId, {}),
     skateDaysBySkaterId,
     trainingSportBySkaterId,
+    primarySportBySkaterId,
+    sportPackageBySkaterId,
+    plansBySportBySkaterId,
     parkProfiles: parkProfiles.length ? parkProfiles : INITIAL_STORE.parkProfiles,
     parkPrefsBySkaterId,
     practiceSettings: {
@@ -797,7 +904,7 @@ function normalizeStoreShape(raw) {
       ...toObj(src.draft, {}),
       date: String(src?.draft?.date || todayISO()),
       park: String(src?.draft?.park || ""),
-      dayType: String(src?.draft?.dayType || Object.keys(plans)[0] || "Grind Day"),
+      dayType: String(src?.draft?.dayType || Object.keys(legacyPlans)[0] || "Grind Day"),
       completedByTaskId: toObj(src?.draft?.completedByTaskId, {}),
       missedByTaskId: toObj(src?.draft?.missedByTaskId, {}),
     },
@@ -841,6 +948,26 @@ function normalizeStoreShape(raw) {
       notesById: toObj(src?.betaCheck?.notesById, {}),
       updatedAt: String(src?.betaCheck?.updatedAt || ""),
     },
+  };
+
+  const mergedActiveSkaterId = String(merged?.ui?.activeSkaterId || merged?.skaters?.[0]?.id || "");
+  const mergedPrimarySport = normalizeSportKey(
+    merged?.primarySportBySkaterId?.[mergedActiveSkaterId] || merged?.trainingSportBySkaterId?.[mergedActiveSkaterId] || "skate",
+    "skate"
+  );
+  const mergedPackage = normalizeSportPackage(merged?.sportPackageBySkaterId?.[mergedActiveSkaterId], SPORT_PACKAGE_SINGLE);
+  const mergedSportKey =
+    mergedPackage === SPORT_PACKAGE_MULTI
+      ? normalizeSportKey(merged?.trainingSportBySkaterId?.[mergedActiveSkaterId] || mergedPrimarySport, mergedPrimarySport)
+      : mergedPrimarySport;
+  const mergedPlansBySport = toObj(merged?.plansBySportBySkaterId?.[mergedActiveSkaterId], {});
+  const mergedActivePlans = Object.keys(toObj(mergedPlansBySport[mergedSportKey], {})).length
+    ? toObj(mergedPlansBySport[mergedSportKey], {})
+    : legacyPlans;
+  merged.plans = mergedActivePlans;
+  merged.draft = {
+    ...merged.draft,
+    dayType: resolveDraftDayTypeForPlans(mergedActivePlans, merged?.draft?.dayType),
   };
 
   return merged;
@@ -1789,21 +1916,30 @@ export default function SkateTrainingPlanApp() {
 
   const members = store.members || [];
   const skaters = store.skaters || [];
-  const plans = store.plans || DEFAULT_PLANS;
+  const trainingSportBySkaterId = store.trainingSportBySkaterId || {};
+  const primarySportBySkaterId = store.primarySportBySkaterId || {};
+  const sportPackageBySkaterId = store.sportPackageBySkaterId || {};
+  const plansBySportBySkaterId = store.plansBySportBySkaterId || {};
   const sessions = store.sessions || [];
   const chatBySkaterId = store.chatBySkaterId || {};
   const practiceEvents = store.practiceEvents || [];
   const practiceSettings = store.practiceSettings || { durationMin: 60, remindMin: 60, title: "SkateFlow Practice", park: "" };
   const reminders = store.reminders || { enabled: false, time: "17:00" };
-  const draft = store.draft || { date: todayISO(), park: "", dayType: Object.keys(plans)[0], completedByTaskId: {}, missedByTaskId: {} };
   const auth = store.auth || { loggedInMemberId: null };
   const ui = store.ui || { view: "log", activeMemberId: members[0]?.id, activeSkaterId: skaters[0]?.id };
+  const activeSkaterId = String(ui.activeSkaterId || skaters[0]?.id || "");
+  const primarySportKey = normalizeSportKey(primarySportBySkaterId?.[activeSkaterId] || trainingSportBySkaterId?.[activeSkaterId] || "skate", "skate");
+  const activeSportPackage = normalizeSportPackage(sportPackageBySkaterId?.[activeSkaterId], SPORT_PACKAGE_SINGLE);
+  const requestedSportKey = normalizeSportKey(trainingSportBySkaterId?.[activeSkaterId] || primarySportKey, primarySportKey);
+  const activeSportKey = activeSportPackage === SPORT_PACKAGE_MULTI ? requestedSportKey : primarySportKey;
+  const plansFromSportMap = toObj(toObj(plansBySportBySkaterId?.[activeSkaterId], {})[activeSportKey], {});
+  const plans = Object.keys(plansFromSportMap).length ? plansFromSportMap : toObj(store.plans, DEFAULT_PLANS);
+  const draft = store.draft || { date: todayISO(), park: "", dayType: Object.keys(plans)[0], completedByTaskId: {}, missedByTaskId: {} };
   const xpBySkaterId = store.xpBySkaterId || {};
   const xpMilestonesBySkaterId = store.xpMilestonesBySkaterId || {};
   const contestBySkaterId = store.contestBySkaterId || {};
   const coachCornerBySkaterId = store.coachCornerBySkaterId || {};
   const skateDaysBySkaterId = store.skateDaysBySkaterId || {};
-  const trainingSportBySkaterId = store.trainingSportBySkaterId || {};
   const parkProfiles = store.parkProfiles || DEFAULT_PARK_PROFILES;
   const parkPrefsBySkaterId = store.parkPrefsBySkaterId || {};
   const appPrefs = store.appPrefs || { theme: "dark" };
@@ -1904,6 +2040,7 @@ export default function SkateTrainingPlanApp() {
 
   const isSkaterMember = activeMember?.role === "skater";
   const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach" || activeMember?.role === "skater";
+  const canManageSportPackage = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const canComment = !!activeMember;
   const canEditStudentMedia = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const canManageTeam = activeMember?.role === "owner";
@@ -1992,6 +2129,17 @@ export default function SkateTrainingPlanApp() {
   }, [nextPracticeEvent, calendarNowMs]);
 
   const tasks = useMemo(() => plans[draft.dayType] || [], [plans, draft.dayType]);
+  useEffect(() => {
+    const nextDayType = resolveDraftDayTypeForPlans(plans, draft.dayType);
+    if (nextDayType === draft.dayType) return;
+    setStore((prev) => ({
+      ...(prev || {}),
+      draft: {
+        ...toObj(prev?.draft, {}),
+        dayType: nextDayType,
+      },
+    }));
+  }, [plans, draft.dayType]);
   const isMediaDayDraft = draft.dayType === MEDIA_DAY_LABEL;
   const totalTarget = useMemo(() => tasks.reduce((sum, t) => sum + (Number(t.target) || 0), 0), [tasks]);
   const totalCompleted = useMemo(
@@ -4160,12 +4308,29 @@ export default function SkateTrainingPlanApp() {
     const name = prompt("Skater name:");
     if (!name) return;
     const next = { id: `s-${uid()}`, name: name.trim(), photoUrl: "" };
+    const defaultSport = "skate";
+    const nextPlansForSkater = {
+      [defaultSport]: defaultPlansForSport(defaultSport),
+    };
     setSlice({
       skaters: [...skaters, next],
       trainingSportBySkaterId: {
         ...trainingSportBySkaterId,
-        [next.id]: "skate",
+        [next.id]: defaultSport,
       },
+      primarySportBySkaterId: {
+        ...primarySportBySkaterId,
+        [next.id]: defaultSport,
+      },
+      sportPackageBySkaterId: {
+        ...sportPackageBySkaterId,
+        [next.id]: SPORT_PACKAGE_SINGLE,
+      },
+      plansBySportBySkaterId: {
+        ...plansBySportBySkaterId,
+        [next.id]: nextPlansForSkater,
+      },
+      plans: nextPlansForSkater[defaultSport],
       ui: { ...ui, activeSkaterId: next.id },
     });
     toast("Skater added", `${next.name} added.`, "success");
@@ -4193,6 +4358,9 @@ export default function SkateTrainingPlanApp() {
       sessions: sessions.filter((s) => s.skaterId !== skater.id),
       skateDaysBySkaterId: Object.fromEntries(Object.entries(skateDaysBySkaterId).filter(([k]) => k !== skater.id)),
       trainingSportBySkaterId: Object.fromEntries(Object.entries(trainingSportBySkaterId).filter(([k]) => k !== skater.id)),
+      primarySportBySkaterId: Object.fromEntries(Object.entries(primarySportBySkaterId).filter(([k]) => k !== skater.id)),
+      sportPackageBySkaterId: Object.fromEntries(Object.entries(sportPackageBySkaterId).filter(([k]) => k !== skater.id)),
+      plansBySportBySkaterId: Object.fromEntries(Object.entries(plansBySportBySkaterId).filter(([k]) => k !== skater.id)),
       ui: {
         ...ui,
         activeSkaterId:
@@ -4224,9 +4392,7 @@ export default function SkateTrainingPlanApp() {
   const [newPlanDayName, setNewPlanDayName] = useState("");
   const [planDayNameDrafts, setPlanDayNameDrafts] = useState({});
   const [newTaskDraftByDay, setNewTaskDraftByDay] = useState({});
-  const activeSportKey = TRAINING_SPORT_OPTIONS.some((s) => s.key === trainingSportBySkaterId?.[ui.activeSkaterId])
-    ? trainingSportBySkaterId[ui.activeSkaterId]
-    : "skate";
+  const canUseMultiSportPackage = activeSportPackage === SPORT_PACKAGE_MULTI;
   const [sportTemplatePick, setSportTemplatePick] = useState(activeSportKey);
 
   useEffect(() => {
@@ -4263,19 +4429,135 @@ export default function SkateTrainingPlanApp() {
     });
   }, [plans]);
 
-  const setActiveTrainingSport = (sportKey) => {
+  const writePlansForSport = (nextPlanMap, opts = {}) => {
+    if (!activeSkaterId) return;
+    const targetSportKey = normalizeSportKey(opts.sportKey || activeSportKey, primarySportKey);
+    const normalizedNextPlans = normalizePlansMap(nextPlanMap, {});
+    const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
+    const nextBySport = {
+      ...currentBySport,
+      [targetSportKey]: normalizedNextPlans,
+    };
+    const nextDraftDayType = resolveDraftDayTypeForPlans(normalizedNextPlans, opts.nextDayType ?? draft.dayType);
+    setSlice({
+      ...(toObj(opts.extraPatch, {})),
+      plansBySportBySkaterId: {
+        ...plansBySportBySkaterId,
+        [activeSkaterId]: nextBySport,
+      },
+      plans: normalizedNextPlans,
+      draft: { ...draft, dayType: nextDraftDayType },
+    });
+  };
+
+  const setSportPackageForActiveSkater = (packageTierRaw) => {
+    if (!activeSkaterId) return;
+    const nextPackage = normalizeSportPackage(packageTierRaw, SPORT_PACKAGE_SINGLE);
+    if (nextPackage === activeSportPackage) return;
+    const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
+    const nextPrimarySport = normalizeSportKey(primarySportBySkaterId?.[activeSkaterId] || activeSportKey, "skate");
+    const nextSelectedSport = nextPackage === SPORT_PACKAGE_MULTI ? activeSportKey : nextPrimarySport;
+    const nextBySport = { ...currentBySport };
+    if (!nextBySport[nextPrimarySport]) nextBySport[nextPrimarySport] = defaultPlansForSport(nextPrimarySport);
+    if (!nextBySport[nextSelectedSport]) nextBySport[nextSelectedSport] = defaultPlansForSport(nextSelectedSport);
+    const nextPlans = normalizePlansMap(nextBySport[nextSelectedSport], DEFAULT_PLANS);
+    const nextDayType = resolveDraftDayTypeForPlans(nextPlans, draft.dayType);
+    setSlice({
+      sportPackageBySkaterId: {
+        ...sportPackageBySkaterId,
+        [activeSkaterId]: nextPackage,
+      },
+      primarySportBySkaterId: {
+        ...primarySportBySkaterId,
+        [activeSkaterId]: nextPrimarySport,
+      },
+      trainingSportBySkaterId: {
+        ...trainingSportBySkaterId,
+        [activeSkaterId]: nextSelectedSport,
+      },
+      plansBySportBySkaterId: {
+        ...plansBySportBySkaterId,
+        [activeSkaterId]: nextBySport,
+      },
+      plans: nextPlans,
+      draft: { ...draft, dayType: nextDayType },
+    });
+    toast(
+      nextPackage === SPORT_PACKAGE_MULTI ? "Multi-sport unlocked" : "Single-sport package active",
+      nextPackage === SPORT_PACKAGE_MULTI
+        ? "This skater can now keep separate plans for multiple sports."
+        : `${sportLabelFromKey(nextPrimarySport)} remains active. Upgrade to multi package for multiple sports.`,
+      "info"
+    );
+  };
+
+  const setPrimarySportForActiveSkater = (sportKey) => {
+    if (!activeSkaterId) return;
     if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return;
+    const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
+    const nextBySport = {
+      ...currentBySport,
+      [sportKey]: currentBySport[sportKey] ? normalizePlansMap(currentBySport[sportKey], DEFAULT_PLANS) : defaultPlansForSport(sportKey),
+    };
+    const nextSelectedSport = canUseMultiSportPackage ? activeSportKey : sportKey;
+    if (!nextBySport[nextSelectedSport]) {
+      nextBySport[nextSelectedSport] = defaultPlansForSport(nextSelectedSport);
+    }
+    const nextPlans = normalizePlansMap(nextBySport[nextSelectedSport], DEFAULT_PLANS);
+    setSlice({
+      primarySportBySkaterId: {
+        ...primarySportBySkaterId,
+        [activeSkaterId]: sportKey,
+      },
+      trainingSportBySkaterId: {
+        ...trainingSportBySkaterId,
+        [activeSkaterId]: nextSelectedSport,
+      },
+      plansBySportBySkaterId: {
+        ...plansBySportBySkaterId,
+        [activeSkaterId]: nextBySport,
+      },
+      plans: nextPlans,
+      draft: { ...draft, dayType: resolveDraftDayTypeForPlans(nextPlans, draft.dayType) },
+    });
+  };
+
+  const setActiveTrainingSport = (sportKey) => {
+    if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return false;
+    if (!canUseMultiSportPackage && sportKey !== primarySportKey) {
+      toast("Multi package required", "Upgrade this skater to multi package to use more than one sport.", "warn");
+      return false;
+    }
+    const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
+    const nextBySport = {
+      ...currentBySport,
+      [sportKey]: currentBySport[sportKey] ? normalizePlansMap(currentBySport[sportKey], DEFAULT_PLANS) : defaultPlansForSport(sportKey),
+    };
+    const nextPlans = normalizePlansMap(nextBySport[sportKey], DEFAULT_PLANS);
     setSlice({
       trainingSportBySkaterId: {
         ...trainingSportBySkaterId,
-        [ui.activeSkaterId]: sportKey,
+        [activeSkaterId]: sportKey,
       },
+      plansBySportBySkaterId: {
+        ...plansBySportBySkaterId,
+        [activeSkaterId]: nextBySport,
+      },
+      plans: nextPlans,
+      draft: { ...draft, dayType: resolveDraftDayTypeForPlans(nextPlans, draft.dayType) },
     });
+    return true;
   };
 
   const importSportPlanSections = (sportKey, mode = "append") => {
     if (!TRAINING_SPORT_OPTIONS.some((s) => s.key === sportKey)) return;
-    const base = mode === "replace" ? {} : { ...plans };
+    if (!canUseMultiSportPackage && sportKey !== primarySportKey) {
+      toast("Multi package required", "Upgrade this skater to multi package to import extra sport sections.", "warn");
+      return;
+    }
+    const currentBySport = toObj(plansBySportBySkaterId?.[activeSkaterId], {});
+    const sourcePlans = currentBySport[sportKey] ? normalizePlansMap(currentBySport[sportKey], {}) : defaultPlansForSport(sportKey);
+    const base = mode === "replace" ? {} : { ...sourcePlans };
     const incoming = buildSportPlanSections(sportKey, { prefixDays: true });
     const nextPlans = { ...base };
     for (const [rawName, tasks] of Object.entries(incoming)) {
@@ -4287,13 +4569,14 @@ export default function SkateTrainingPlanApp() {
       }
       nextPlans[dayName] = tasks;
     }
-    const nextDayType = Object.keys(nextPlans)[0] || draft.dayType || "Training Day";
-    setSlice({
-      plans: nextPlans,
-      draft: { ...draft, dayType: nextDayType },
-      trainingSportBySkaterId: {
-        ...trainingSportBySkaterId,
-        [ui.activeSkaterId]: sportKey,
+    writePlansForSport(nextPlans, {
+      sportKey,
+      nextDayType: Object.keys(nextPlans)[0] || draft.dayType || "Training Day",
+      extraPatch: {
+        trainingSportBySkaterId: {
+          ...trainingSportBySkaterId,
+          [activeSkaterId]: sportKey,
+        },
       },
     });
     const sportLabel = sportLabelFromKey(sportKey);
@@ -4314,8 +4597,7 @@ export default function SkateTrainingPlanApp() {
       toast("Day exists", "That day type already exists.", "warn");
       return;
     }
-    setSlice({ plans: { ...plans, [key]: [] } });
-    setDraft({ dayType: key });
+    writePlansForSport({ ...plans, [key]: [] }, { nextDayType: key });
     setNewPlanDayName("");
     toast("Plan added", `New day type: ${key}`, "success");
   };
@@ -4332,8 +4614,7 @@ export default function SkateTrainingPlanApp() {
     const tasks2 = copy[oldName] || [];
     delete copy[oldName];
     copy[key] = tasks2;
-    setSlice({ plans: copy });
-    if (draft.dayType === oldName) setDraft({ dayType: key });
+    writePlansForSport(copy, { nextDayType: draft.dayType === oldName ? key : draft.dayType });
     setPlanDayNameDrafts((prev) => {
       const next = { ...prev };
       delete next[oldName];
@@ -4347,28 +4628,24 @@ export default function SkateTrainingPlanApp() {
     if (!confirm(`Delete "${name}"?`)) return;
     const copy = { ...plans };
     delete copy[name];
-    const keys = Object.keys(copy);
-    setSlice({ plans: copy });
-    if (draft.dayType === name) setDraft({ dayType: keys[0] || "Grind Day" });
+    writePlansForSport(copy, { nextDayType: draft.dayType === name ? Object.keys(copy)[0] || "Grind Day" : draft.dayType });
     toast("Plan deleted", `${name} removed.`, "warn");
   };
 
   const updatePlanTask = (dayName, taskId, patch) => {
-    setSlice({
-      plans: {
-        ...plans,
-        [dayName]: (plans[dayName] || []).map((t) =>
-          t.id === taskId
-            ? {
-                ...t,
-                ...patch,
-                label: String((patch?.label ?? t.label) || ""),
-                target: Math.max(0, Number(patch?.target ?? t.target) || 0),
-                notes: String((patch?.notes ?? t.notes) || ""),
-              }
-            : t
-        ),
-      },
+    writePlansForSport({
+      ...plans,
+      [dayName]: (plans[dayName] || []).map((t) =>
+        t.id === taskId
+          ? {
+              ...t,
+              ...patch,
+              label: String((patch?.label ?? t.label) || ""),
+              target: Math.max(0, Number(patch?.target ?? t.target) || 0),
+              notes: String((patch?.notes ?? t.notes) || ""),
+            }
+          : t
+      ),
     });
   };
 
@@ -4391,11 +4668,9 @@ export default function SkateTrainingPlanApp() {
     }
     const target = Math.max(0, Number(row.target) || 0);
     const notes = String(row.notes || "").trim();
-    setSlice({
-      plans: {
-        ...plans,
-        [dayName]: [...(plans[dayName] || []), { id: `t-${uid()}`, label, target, notes }],
-      },
+    writePlansForSport({
+      ...plans,
+      [dayName]: [...(plans[dayName] || []), { id: `t-${uid()}`, label, target, notes }],
     });
     setNewTaskDraftByDay((prev) => ({
       ...prev,
@@ -4406,7 +4681,7 @@ export default function SkateTrainingPlanApp() {
 
   const deleteTask = (dayName, taskId) => {
     if (!confirm("Delete this task?")) return;
-    setSlice({ plans: { ...plans, [dayName]: (plans[dayName] || []).filter((t) => t.id !== taskId) } });
+    writePlansForSport({ ...plans, [dayName]: (plans[dayName] || []).filter((t) => t.id !== taskId) });
     toast("Task removed", "Task deleted.", "warn");
   };
 
@@ -6555,38 +6830,78 @@ export default function SkateTrainingPlanApp() {
                 <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <div>
-                      <div className="text-sm font-semibold">Multi-Sport Training Sections</div>
+                      <div className="text-sm font-semibold">Sport Package + Training Sections</div>
                       <div className="text-xs text-white/60">
-                        Add templates for BMX, roller, scooter, track, swimming, football, gymnastics, soccer, baseball, basketball, and lacrosse.
+                        Single package keeps one sport. Multi package unlocks separate plans per sport.
                       </div>
                     </div>
-                    <Pill tone="cyan">{sportLabelFromKey(activeSportKey)}</Pill>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill tone={canUseMultiSportPackage ? "good" : "warn"}>
+                        {canUseMultiSportPackage ? "Multi Package" : "Single Package"}
+                      </Pill>
+                      <Pill tone="cyan">{sportLabelFromKey(activeSportKey)}</Pill>
+                    </div>
                   </div>
                   <div className="mt-3 grid grid-cols-1 sm:grid-cols-12 gap-2">
-                    <div className="sm:col-span-5">
+                    <div className="sm:col-span-4">
+                      <div className="text-[11px] text-white/60">Package</div>
+                      {canManageSportPackage ? (
+                        <select
+                          value={activeSportPackage}
+                          onChange={(e) => setSportPackageForActiveSkater(e.target.value)}
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        >
+                          <option value={SPORT_PACKAGE_SINGLE}>Single Sport</option>
+                          <option value={SPORT_PACKAGE_MULTI}>Multi Sport</option>
+                        </select>
+                      ) : (
+                        <div className="mt-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm">{canUseMultiSportPackage ? "Multi Sport" : "Single Sport"}</div>
+                      )}
+                    </div>
+                    <div className="sm:col-span-4">
+                      <div className="text-[11px] text-white/60">Single Package Sport</div>
+                      {canManageSportPackage ? (
+                        <select
+                          value={primarySportKey}
+                          onChange={(e) => setPrimarySportForActiveSkater(e.target.value)}
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        >
+                          {TRAINING_SPORT_OPTIONS.map((sport) => (
+                            <option key={`primary-${sport.key}`} value={sport.key}>
+                              {sport.label}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <div className="mt-1 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm">{sportLabelFromKey(primarySportKey)}</div>
+                      )}
+                    </div>
+                    <div className="sm:col-span-4">
                       <div className="text-[11px] text-white/60">Sport</div>
                       <select
                         value={sportTemplatePick}
                         onChange={(e) => {
                           const next = e.target.value;
-                          setSportTemplatePick(next);
-                          setActiveTrainingSport(next);
+                          const changed = setActiveTrainingSport(next);
+                          setSportTemplatePick(changed ? next : activeSportKey);
                         }}
                         className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                       >
                         {TRAINING_SPORT_OPTIONS.map((sport) => (
-                          <option key={sport.key} value={sport.key}>
+                          <option key={sport.key} value={sport.key} disabled={!canUseMultiSportPackage && sport.key !== primarySportKey}>
                             {sport.label}
+                            {!canUseMultiSportPackage && sport.key !== primarySportKey ? " (Multi package)" : ""}
                           </option>
                         ))}
                       </select>
                     </div>
-                    <div className="sm:col-span-7 flex flex-wrap items-end gap-2">
+                    <div className="sm:col-span-12 flex flex-wrap items-end gap-2">
                       {canEditPlans ? (
                         <>
                           <button
                             type="button"
                             onClick={() => importSportPlanSections(sportTemplatePick, "append")}
+                            disabled={!canUseMultiSportPackage && sportTemplatePick !== primarySportKey}
                             className="rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30"
                           >
                             Add Sport Sections
@@ -6597,6 +6912,7 @@ export default function SkateTrainingPlanApp() {
                               if (!confirm(`Replace current plan with ${sportLabelFromKey(sportTemplatePick)} sections?`)) return;
                               importSportPlanSections(sportTemplatePick, "replace");
                             }}
+                            disabled={!canUseMultiSportPackage && sportTemplatePick !== primarySportKey}
                             className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
                           >
                             Replace Full Plan
@@ -6607,6 +6923,11 @@ export default function SkateTrainingPlanApp() {
                       )}
                     </div>
                   </div>
+                  {!canUseMultiSportPackage ? (
+                    <div className="mt-3 text-xs text-amber-200">
+                      Multi-sport is locked for this skater. Upgrade to Multi Sport package to maintain separate plans for additional sports.
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-5 space-y-3">
