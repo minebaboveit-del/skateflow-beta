@@ -22,6 +22,7 @@ import {
   Pencil,
   Plus,
   RefreshCw,
+  School,
   Search,
   Share2,
   Settings,
@@ -45,9 +46,256 @@ import {
 } from "recharts";
 
 const STORAGE_KEY = "skateflow_clean_v1";
-const APP_NAME = "Athlete Flow";
+const APP_NAME = "Athlete Flow Training Hub";
+const APP_WORDMARK = "ATHLETEFLOW";
+const APP_TAGLINE = "Training Hub for families, coaches, and pro reviewers";
 const APP_FILE_PREFIX = "athleteflow";
 const APP_PRACTICE_TITLE = `${APP_NAME} Practice`;
+const PROGRAM_TYPE_OPTIONS = ["family", "school-team", "club-team"];
+const PROGRAM_LEVEL_OPTIONS = ["youth", "middle-school", "high-school", "college", "adult"];
+const BACKGROUND_PRESETS = [
+  { key: "aurora", label: "Aurora", css: "linear-gradient(135deg, #05232f 0%, #144d68 45%, #1f7a5d 100%)" },
+  { key: "sunset", label: "Sunset", css: "linear-gradient(135deg, #331122 0%, #8a2545 45%, #e16d3d 100%)" },
+  { key: "slate", label: "Slate", css: "linear-gradient(135deg, #0b1020 0%, #1e293b 55%, #334155 100%)" },
+  { key: "forest", label: "Forest", css: "linear-gradient(135deg, #071a12 0%, #134e4a 50%, #166534 100%)" },
+  { key: "royal", label: "Royal", css: "linear-gradient(135deg, #111827 0%, #3730a3 50%, #1d4ed8 100%)" },
+];
+const UI_LANGUAGE_PREFS = new Set([
+  "auto",
+  "en",
+  "zh-Hans",
+  "zh-Hant",
+  "ko",
+  "ja",
+  "fil",
+  "th",
+  "es",
+  "fr",
+  "de",
+  "it",
+  "pt-BR",
+  "pt-PT",
+  "ru",
+  "uk",
+  "pl",
+  "nl",
+  "tr",
+  "ar",
+  "hi",
+  "id",
+  "vi",
+  "ms",
+  "sv",
+  "no",
+  "da",
+  "fi",
+  "ro",
+  "el",
+  "he",
+]);
+const UI_LANGUAGE_OPTIONS = [
+  { value: "auto", label: "Auto (Device)" },
+  { value: "en", label: "English" },
+  { value: "zh-Hans", label: "中文 (简体)" },
+  { value: "zh-Hant", label: "中文 (繁體)" },
+  { value: "ko", label: "한국어" },
+  { value: "ja", label: "日本語" },
+  { value: "fil", label: "Filipino" },
+  { value: "th", label: "ไทย" },
+  { value: "es", label: "Español" },
+  { value: "fr", label: "Français" },
+  { value: "de", label: "Deutsch" },
+  { value: "it", label: "Italiano" },
+  { value: "pt-BR", label: "Português (Brasil)" },
+  { value: "pt-PT", label: "Português (Portugal)" },
+  { value: "ru", label: "Русский" },
+  { value: "uk", label: "Українська" },
+  { value: "pl", label: "Polski" },
+  { value: "nl", label: "Nederlands" },
+  { value: "tr", label: "Türkçe" },
+  { value: "ar", label: "العربية" },
+  { value: "hi", label: "हिन्दी" },
+  { value: "id", label: "Bahasa Indonesia" },
+  { value: "vi", label: "Tiếng Việt" },
+  { value: "ms", label: "Bahasa Melayu" },
+  { value: "sv", label: "Svenska" },
+  { value: "no", label: "Norsk" },
+  { value: "da", label: "Dansk" },
+  { value: "fi", label: "Suomi" },
+  { value: "ro", label: "Română" },
+  { value: "el", label: "Ελληνικά" },
+  { value: "he", label: "עברית" },
+];
+const UI_COPY = {
+  en: {
+    "app.tagline": "Training Hub for families, coaches, and pro reviewers",
+    "tabs.log": "Log",
+    "tabs.cards": "Cards",
+    "tabs.calendar": "Calendar",
+    "tabs.stats": "Stats",
+    "tabs.plans": "Plans",
+    "tabs.pro": "Pro",
+    "tabs.coach": "Coach",
+    "tabs.freeSkate": "Free Skate",
+    "tabs.contest": "Contest",
+    "tabs.team": "Team",
+    "tabs.chat": "Chat",
+    "tabs.academy": "Academy",
+    "tabs.settings": "Settings",
+    "settings.language.title": "Language",
+    "settings.language.detail": "Set app language for labels and timestamps.",
+    "settings.language.label": "App language",
+    "settings.theme.title": "Theme",
+    "settings.theme.detail": "Switch between dark and light mode.",
+    "settings.theme.dark": "Use Dark Mode",
+    "settings.theme.light": "Use Light Mode",
+    "role.owner": "Owner",
+    "role.coach": "Coach",
+    "role.dad": "Dad",
+    "role.proskater": "Pro Skater",
+    "role.media": "Media",
+  },
+  "zh-Hans": {
+    "app.tagline": "面向家庭、教练与职业评审的训练中心",
+    "tabs.log": "记录",
+    "tabs.cards": "卡片",
+    "tabs.calendar": "日历",
+    "tabs.stats": "统计",
+    "tabs.plans": "计划",
+    "tabs.pro": "职业反馈",
+    "tabs.coach": "教练",
+    "tabs.freeSkate": "自由滑",
+    "tabs.contest": "比赛",
+    "tabs.team": "团队",
+    "tabs.chat": "聊天",
+    "tabs.academy": "学院",
+    "tabs.settings": "设置",
+    "settings.language.title": "语言",
+    "settings.language.detail": "设置应用语言与时间显示格式。",
+    "settings.language.label": "应用语言",
+    "settings.theme.title": "主题",
+    "settings.theme.detail": "在深色与浅色模式间切换。",
+    "settings.theme.dark": "使用深色模式",
+    "settings.theme.light": "使用浅色模式",
+    "role.owner": "所有者",
+    "role.coach": "教练",
+    "role.dad": "家长",
+    "role.proskater": "职业滑手",
+    "role.media": "媒体",
+  },
+  ko: {
+    "app.tagline": "가족, 코치, 프로 리뷰어를 위한 트레이닝 허브",
+    "tabs.log": "기록",
+    "tabs.cards": "카드",
+    "tabs.calendar": "캘린더",
+    "tabs.stats": "통계",
+    "tabs.plans": "플랜",
+    "tabs.pro": "프로",
+    "tabs.coach": "코치",
+    "tabs.freeSkate": "프리 스케이트",
+    "tabs.contest": "대회",
+    "tabs.team": "팀",
+    "tabs.chat": "채팅",
+    "tabs.academy": "아카데미",
+    "tabs.settings": "설정",
+    "settings.language.title": "언어",
+    "settings.language.detail": "앱 라벨과 시간 표시 언어를 설정합니다.",
+    "settings.language.label": "앱 언어",
+    "settings.theme.title": "테마",
+    "settings.theme.detail": "다크/라이트 모드를 전환합니다.",
+    "settings.theme.dark": "다크 모드 사용",
+    "settings.theme.light": "라이트 모드 사용",
+    "role.owner": "소유자",
+    "role.coach": "코치",
+    "role.dad": "보호자",
+    "role.proskater": "프로 스케이터",
+    "role.media": "미디어",
+  },
+  ja: {
+    "app.tagline": "家族・コーチ・プロレビュー向けトレーニングハブ",
+    "tabs.log": "記録",
+    "tabs.cards": "カード",
+    "tabs.calendar": "カレンダー",
+    "tabs.stats": "統計",
+    "tabs.plans": "プラン",
+    "tabs.pro": "プロ",
+    "tabs.coach": "コーチ",
+    "tabs.freeSkate": "フリースケート",
+    "tabs.contest": "大会",
+    "tabs.team": "チーム",
+    "tabs.chat": "チャット",
+    "tabs.academy": "アカデミー",
+    "tabs.settings": "設定",
+    "settings.language.title": "言語",
+    "settings.language.detail": "アプリ表示と言語別の日時表記を設定します。",
+    "settings.language.label": "アプリ言語",
+    "settings.theme.title": "テーマ",
+    "settings.theme.detail": "ダーク/ライトモードを切り替えます。",
+    "settings.theme.dark": "ダークモード",
+    "settings.theme.light": "ライトモード",
+    "role.owner": "オーナー",
+    "role.coach": "コーチ",
+    "role.dad": "保護者",
+    "role.proskater": "プロスケーター",
+    "role.media": "メディア",
+  },
+  fil: {
+    "app.tagline": "Training Hub para sa pamilya, coaches, at pro reviewers",
+    "tabs.log": "Log",
+    "tabs.cards": "Cards",
+    "tabs.calendar": "Kalendaryo",
+    "tabs.stats": "Stats",
+    "tabs.plans": "Plano",
+    "tabs.pro": "Pro",
+    "tabs.coach": "Coach",
+    "tabs.freeSkate": "Free Skate",
+    "tabs.contest": "Contest",
+    "tabs.team": "Team",
+    "tabs.chat": "Chat",
+    "tabs.academy": "Academy",
+    "tabs.settings": "Settings",
+    "settings.language.title": "Wika",
+    "settings.language.detail": "Itakda ang wika para sa labels at oras/petsa.",
+    "settings.language.label": "Wika ng app",
+    "settings.theme.title": "Theme",
+    "settings.theme.detail": "Palitan sa dark o light mode.",
+    "settings.theme.dark": "Gamitin ang Dark Mode",
+    "settings.theme.light": "Gamitin ang Light Mode",
+    "role.owner": "Owner",
+    "role.coach": "Coach",
+    "role.dad": "Parent",
+    "role.proskater": "Pro Skater",
+    "role.media": "Media",
+  },
+  th: {
+    "app.tagline": "ระบบฝึกซ้อมสำหรับครอบครัว โค้ช และโปรรีวิว",
+    "tabs.log": "บันทึก",
+    "tabs.cards": "การ์ด",
+    "tabs.calendar": "ปฏิทิน",
+    "tabs.stats": "สถิติ",
+    "tabs.plans": "แผน",
+    "tabs.pro": "โปร",
+    "tabs.coach": "โค้ช",
+    "tabs.freeSkate": "ฟรีสเก็ต",
+    "tabs.contest": "แข่งขัน",
+    "tabs.team": "ทีม",
+    "tabs.chat": "แชต",
+    "tabs.academy": "อะคาเดมี",
+    "tabs.settings": "ตั้งค่า",
+    "settings.language.title": "ภาษา",
+    "settings.language.detail": "ตั้งค่าภาษาและรูปแบบวันเวลาในแอป",
+    "settings.language.label": "ภาษาแอป",
+    "settings.theme.title": "ธีม",
+    "settings.theme.detail": "สลับโหมดมืด/สว่าง",
+    "settings.theme.dark": "ใช้โหมดมืด",
+    "settings.theme.light": "ใช้โหมดสว่าง",
+    "role.owner": "เจ้าของ",
+    "role.coach": "โค้ช",
+    "role.dad": "ผู้ปกครอง",
+    "role.proskater": "โปรสเก็ต",
+    "role.media": "มีเดีย",
+  },
+};
 
 const DEFAULT_PLANS = {
   "Grind Day": [
@@ -66,6 +314,24 @@ const DEFAULT_PLANS = {
   "Air Day": [
     { id: "ad-1", label: "FS Airs (BIG lift)", target: 40, notes: "Should be close to tile. Can warm up halfway" },
     { id: "ad-2", label: "BS Airs", target: 30, notes: "Back wheels fully lapped over coping THEN grab" },
+  ],
+};
+
+const KIKO_TEST_PLAN_TEMPLATE = {
+  "Kiko Weekly List": [
+    { label: "Warm-up carving laps", target: 8, notes: "4 frontside + 4 backside flow laps." },
+    { label: "Core trick reps", target: 20, notes: "Focus on clean landings and speed control." },
+    { label: "Line consistency runs", target: 6, notes: "Run full line without stopping." },
+  ],
+  "Kiko Video Tasks": [
+    { label: "Record 3 angle clips", target: 3, notes: "Front, side, and follow angle." },
+    { label: "Coach annotation review", target: 1, notes: "Review draw-over corrections and notes." },
+    { label: "Fix + re-record attempts", target: 6, notes: "Apply correction and compare side-by-side." },
+  ],
+  "Kiko Contest Prep": [
+    { label: "Contest run draft", target: 1, notes: "Build run order in Contest tab timeline." },
+    { label: "Landed scoring tricks", target: 10, notes: "Prioritize tricks planned for judges." },
+    { label: "Final clean run", target: 3, notes: "Simulate official timed run." },
   ],
 };
 
@@ -410,17 +676,43 @@ function createDefaultBetaCheck() {
   return { checkedById: {}, notesById: {}, updatedAt: "" };
 }
 
+function createDefaultBackgroundPref() {
+  return {
+    mode: "default", // default | preset | image
+    presetKey: "aurora",
+    imageUrl: "",
+    imageLayout: "fit", // fit | tile
+  };
+}
+
+function createDefaultProgramProfile() {
+  return {
+    enabled: false,
+    programType: "family",
+    level: "youth",
+    schoolName: "",
+    teamName: "",
+    cityState: "",
+    season: "",
+    notes: "",
+  };
+}
+
 function createDefaultProFeedback() {
   return {
     enabled: false,
     priceUsd: 65,
+    ownerShareUsd: 30,
+    weeklyPayoutDay: "Friday",
+    paypalMeUrl: "",
+    paypalEmail: "",
     paymentUrl: "",
-    instructions: "Upload a clip link and question. Pro feedback starts after payment is confirmed.",
+    instructions: "Families pay your PayPal first. Pro payouts are sent weekly after payment is confirmed.",
     requestsBySkaterId: {},
   };
 }
 
-const MEMBER_ROLES = new Set(["owner", "coach", "dad", "skater"]);
+const MEMBER_ROLES = new Set(["owner", "coach", "dad", "proskater", "media", "skater"]);
 
 function normalizeMemberRole(value, fallback = "dad") {
   const role = String(value || "").trim().toLowerCase();
@@ -433,9 +725,15 @@ const INITIAL_STORE = {
     { id: "m-1", name: "Myisha", role: "owner", pin: "", photoUrl: "", biometricCredentialId: "" },
     { id: "m-2", name: "Coach", role: "coach", pin: "", photoUrl: "", biometricCredentialId: "" },
     { id: "m-3", name: "Dad", role: "dad", pin: "", photoUrl: "", biometricCredentialId: "" },
+    { id: "m-5", name: "Pro Skater", role: "proskater", pin: "", photoUrl: "", biometricCredentialId: "" },
+    { id: "m-6", name: "Media", role: "media", pin: "", photoUrl: "", biometricCredentialId: "" },
     { id: "m-4", name: "Conner", role: "skater", pin: "", photoUrl: "", biometricCredentialId: "" },
+    { id: "m-7", name: "Kiko Test", role: "skater", pin: "", photoUrl: "", biometricCredentialId: "" },
   ],
-  skaters: [{ id: "s-1", name: "Conner", photoUrl: "" }],
+  skaters: [
+    { id: "s-1", name: "Conner", photoUrl: "" },
+    { id: "s-2", name: "Kiko Test", photoUrl: "" },
+  ],
   plans: normalizePlansMap(DEFAULT_PLANS, DEFAULT_PLANS),
   sessions: [],
   chatBySkaterId: {},
@@ -449,24 +747,30 @@ const INITIAL_STORE = {
   ui: { view: "log", activeMemberId: "m-1", activeSkaterId: "s-1" },
   contestBySkaterId: {},
   coachCornerBySkaterId: {},
+  trickProfileBySkaterId: {},
+  academyBySkaterId: {},
   skateDaysBySkaterId: {},
-  trainingSportBySkaterId: { "s-1": "skate" },
-  primarySportBySkaterId: { "s-1": "skate" },
-  sportPackageBySkaterId: { "s-1": SPORT_PACKAGE_SINGLE },
+  trainingSportBySkaterId: { "s-1": "skate", "s-2": "skate" },
+  primarySportBySkaterId: { "s-1": "skate", "s-2": "skate" },
+  sportPackageBySkaterId: { "s-1": SPORT_PACKAGE_SINGLE, "s-2": SPORT_PACKAGE_SINGLE },
   plansBySportBySkaterId: {
     "s-1": {
+      skate: normalizePlansMap(DEFAULT_PLANS, DEFAULT_PLANS),
+    },
+    "s-2": {
       skate: normalizePlansMap(DEFAULT_PLANS, DEFAULT_PLANS),
     },
   },
   parkProfiles: DEFAULT_PARK_PROFILES,
   parkPrefsBySkaterId: {},
-  appPrefs: { theme: "dark" },
+  appPrefs: { theme: "dark", language: "auto", backgroundByMemberId: {}, copyOverridesByLanguage: {} },
+  programProfile: createDefaultProgramProfile(),
   cloudSync: DEFAULT_CLOUD_SYNC,
   betaCheck: createDefaultBetaCheck(),
   proFeedback: createDefaultProFeedback(),
 };
 
-const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "team", "chat", "profeedback", "settings"]);
+const VALID_VIEWS = new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "academy", "team", "chat", "profeedback", "settings"]);
 const MEDIA_DAY_LABEL = "Media Day";
 const FREE_SKATE_KIND = "free-skate";
 const SKATE_TRIP_KIND = "skate-trip";
@@ -481,7 +785,7 @@ const GOSKATE_LISTING_API = "https://goskate.com/sp/wp-json/wp/v2/listing";
 const GOSKATE_LISTING_FIELDS = "id,link,title.rendered,property_meta.REAL_HOMES_property_location,property_meta.REAL_HOMES_property_address,modified";
 
 const BETA_CHECK_ITEMS = [
-  { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad and the athlete profile role." },
+  { id: "login", label: "Login and member switching", detail: "PIN login works for owner/coach/dad/pro/media and the athlete profile role." },
   { id: "log_session", label: "Log and save session", detail: "Session saves with reps and scores." },
   { id: "media_upload", label: "Media upload", detail: "Photo/video upload works in Log and Cards." },
   { id: "media_trim", label: "Video trim/edit", detail: "Trim tool saves updated clip." },
@@ -492,6 +796,461 @@ const BETA_CHECK_ITEMS = [
   { id: "ios_pwa", label: "iPhone home screen", detail: "App opens from Add to Home Screen." },
   { id: "light_mode", label: "Light mode readability", detail: "Text/buttons remain readable in light mode." },
 ];
+
+const SKATE_TRICK_CATALOG = [
+  {
+    key: "street",
+    label: "Street",
+    tricks: [
+      "Ollie",
+      "Nollie",
+      "Fakie Ollie",
+      "Switch Ollie",
+      "Kickflip",
+      "Heelflip",
+      "Varial Kickflip",
+      "Varial Heelflip",
+      "Hardflip",
+      "Inward Heelflip",
+      "360 Flip",
+      "Laser Flip",
+      "Bigspin",
+      "Bigflip",
+      "Frontside Shove-it",
+      "Backside Shove-it",
+      "Frontside Pop Shove-it",
+      "Backside Pop Shove-it",
+      "Impossible",
+      "Boneless",
+      "Wallie",
+      "No Comply",
+      "Manual",
+      "Nose Manual",
+      "50-50 Grind",
+      "5-0 Grind",
+      "Nose Grind",
+      "Smith Grind",
+      "Feeble Grind",
+      "Crooked Grind",
+      "Over Crook",
+      "Noseblunt Slide",
+      "Boardslide",
+      "Lipslide",
+      "Noseslide",
+      "Tailslide",
+      "Frontside Bluntslide",
+      "Backside Tailslide",
+    ],
+  },
+  {
+    key: "vert",
+    label: "Vert",
+    tricks: [
+      "Frontside Air",
+      "Backside Air",
+      "Indy Air",
+      "Melon Grab",
+      "Mute Grab",
+      "Method Air",
+      "Stalefish",
+      "Lien Air",
+      "Crail Air",
+      "Nosegrab",
+      "Tailgrab",
+      "Japan Air",
+      "Madonna",
+      "Benihana",
+      "Frontside Invert",
+      "Backside Invert",
+      "Andrecht",
+      "Handplant",
+      "Eggplant",
+      "McTwist",
+      "540",
+      "720",
+      "900",
+      "Caballerial",
+      "Half Cab",
+      "Varial 540",
+      "Stalefish 540",
+      "Backside Boneless",
+    ],
+  },
+  {
+    key: "pool_bowl",
+    label: "Pool/Bowl",
+    tricks: [
+      "Carve",
+      "Layback Carve",
+      "Slash Grind",
+      "Frontside Grind",
+      "Backside Grind",
+      "Rock to Fakie",
+      "Rock and Roll",
+      "Fakie Rock",
+      "Disaster",
+      "Frontside Disaster",
+      "Backside Disaster",
+      "Axle Stall",
+      "Smith Stall",
+      "Feeble Stall",
+      "Nose Stall",
+      "5-0 Stall",
+      "Blunt Stall",
+      "Boneless in Bowl",
+      "Frontside Air Over Hip",
+      "Backside Air Over Hip",
+      "Transfer Air",
+      "Pool Invert",
+      "Bowl Invert",
+      "Fakie Smith",
+      "Fakie 5-0",
+      "Frontside Smith Grind",
+      "Backside Smith Grind",
+      "Hurricane Grind",
+    ],
+  },
+  {
+    key: "combi",
+    label: "Combi",
+    tricks: [
+      "Line: FS Air to Grind",
+      "Line: BS Air to Disaster",
+      "Line: Invert to Grind",
+      "Line: Caballerial to Air",
+      "Line: Grind Transfer",
+      "Line: Hip Transfer",
+      "Line: Air to Lip Trick",
+      "Line: Lip Trick to Revert",
+      "Line: Revert to Air",
+      "Line: Trick Combo (3+)",
+      "Combi Extension Transfer",
+      "Combi Deep End Air",
+      "Combi Frontside Layback",
+      "Combi Backside Layback",
+      "Combi Speed Pump Line",
+      "Combi Last-Hit Finisher",
+    ],
+  },
+  {
+    key: "mega",
+    label: "Mega Ramp",
+    tricks: [
+      "Mega Frontside Air",
+      "Mega Backside Air",
+      "Mega Indy",
+      "Mega Melon",
+      "Mega Stalefish",
+      "Mega Method",
+      "Mega 360",
+      "Mega 540",
+      "Mega 720",
+      "Mega 900",
+      "Mega Bigspin",
+      "Mega Heelflip",
+      "Mega Kickflip",
+      "Mega Flip Variation",
+      "Mega Transfer",
+      "Mega Gap to Rail",
+      "Mega Frontside Grind",
+      "Mega Backside Grind",
+      "Mega Tailgrab",
+      "Mega Trick Combo",
+    ],
+  },
+];
+
+function trickIdFromName(categoryKey, name) {
+  const cat = String(categoryKey || "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "-");
+  const slug = String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+  return `${cat}:${slug || `trick-${uid()}`}`;
+}
+
+const SKATE_TRICK_LIBRARY = SKATE_TRICK_CATALOG.flatMap((cat) =>
+  toArray(cat.tricks).map((name) => ({
+    id: trickIdFromName(cat.key, name),
+    name: String(name || "").trim(),
+    category: String(cat.key || ""),
+    categoryLabel: String(cat.label || ""),
+  }))
+);
+
+const SKATE_TRICK_LIBRARY_BY_ID = Object.fromEntries(SKATE_TRICK_LIBRARY.map((t) => [t.id, t]));
+const SKATE_TRICK_LIBRARY_BY_NAME = Object.fromEntries(
+  SKATE_TRICK_LIBRARY.map((t) => [String(t?.name || "").trim().toLowerCase(), t]).filter(([name]) => !!name)
+);
+
+function findTrickByName(name) {
+  const key = String(name || "").trim().toLowerCase();
+  if (!key) return null;
+  return SKATE_TRICK_LIBRARY_BY_NAME[key] || null;
+}
+
+const TRICK_TOKEN_ALIASES = {
+  fs: "frontside",
+  bs: "backside",
+  "b/s": "backside",
+  "f/s": "frontside",
+};
+
+function normalizeTrickSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/\.[a-z0-9]{2,6}$/i, "")
+    .replace(/[_-]+/g, " ")
+    .replace(/[^a-z0-9]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function tokenizeTrickSearchText(value) {
+  return Array.from(
+    new Set(
+      normalizeTrickSearchText(value)
+        .split(" ")
+        .filter(Boolean)
+        .map((token) => TRICK_TOKEN_ALIASES[token] || token)
+    )
+  );
+}
+
+function inferTrickSuggestionsFromFileName(fileName, maxResults = 3) {
+  const sourceText = normalizeTrickSearchText(fileName);
+  if (!sourceText) return [];
+  const sourceTokens = tokenizeTrickSearchText(sourceText);
+  if (!sourceTokens.length) return [];
+  const sourceSet = new Set(sourceTokens);
+  const scored = [];
+
+  for (const trick of SKATE_TRICK_LIBRARY) {
+    const trickName = String(trick?.name || "");
+    const trickText = normalizeTrickSearchText(trickName);
+    if (!trickText) continue;
+    const trickTokens = tokenizeTrickSearchText(trickText);
+    if (!trickTokens.length) continue;
+
+    const tokenHits = trickTokens.reduce((sum, token) => sum + (sourceSet.has(token) ? 1 : 0), 0);
+    const fullPhraseHit = sourceText.includes(trickText);
+    if (!tokenHits && !fullPhraseHit) continue;
+
+    const tokenScore = tokenHits / trickTokens.length;
+    const phraseBonus = fullPhraseHit ? 0.38 : 0;
+    const shortClipHintBonus = sourceTokens.length <= 3 && tokenHits > 0 ? 0.08 : 0;
+    const rawScore = tokenScore * 0.75 + phraseBonus + shortClipHintBonus;
+    const confidence = Math.max(0.25, Math.min(0.98, Number(rawScore.toFixed(2))));
+    scored.push({
+      id: String(trick.id || ""),
+      name: trickName,
+      confidence,
+    });
+  }
+
+  return scored.sort((a, b) => b.confidence - a.confidence || a.name.length - b.name.length).slice(0, Math.max(1, Number(maxResults) || 3));
+}
+
+function normalizeTrickAssist(value, fallbackFileName = "") {
+  const src = toObj(value, {});
+  const fallbackSuggestions = inferTrickSuggestionsFromFileName(fallbackFileName, 3);
+  const suggestionsRaw = toArray(src.suggestions).length ? toArray(src.suggestions) : fallbackSuggestions;
+  const suggestions = suggestionsRaw
+    .map((item) => {
+      const id = String(item?.id || "");
+      const fallbackName = SKATE_TRICK_LIBRARY_BY_ID[id]?.name || "";
+      const name = String(item?.name || fallbackName).trim();
+      if (!name) return null;
+      const confidenceRaw = Number(item?.confidence);
+      const confidence = Number.isFinite(confidenceRaw) ? Math.max(0, Math.min(0.99, confidenceRaw)) : 0.5;
+      return { id: id || trickIdFromName("assist", name), name, confidence: Number(confidence.toFixed(2)) };
+    })
+    .filter(Boolean)
+    .slice(0, 3);
+
+  const selectedNameRaw = String(src.selectedTrickName || "").trim();
+  const selectedIdRaw = String(src.selectedTrickId || "").trim();
+  let selectedTrickId = selectedIdRaw;
+  let selectedTrickName = selectedNameRaw;
+  if (!selectedTrickName && suggestions[0]?.name) selectedTrickName = suggestions[0].name;
+  if (!selectedTrickId && suggestions[0]?.id) selectedTrickId = suggestions[0].id;
+  if (selectedTrickName && !selectedTrickId) {
+    const byName = findTrickByName(selectedTrickName);
+    if (byName?.id) selectedTrickId = byName.id;
+  }
+  if (selectedTrickId && !selectedTrickName) {
+    selectedTrickName = SKATE_TRICK_LIBRARY_BY_ID[selectedTrickId]?.name || selectedTrickName;
+  }
+
+  return {
+    source: String(src.source || "filename-assist-v1"),
+    suggestions,
+    selectedTrickId: selectedTrickId || "",
+    selectedTrickName: selectedTrickName || "",
+  };
+}
+
+function createDefaultTrickProfile() {
+  return {
+    learnedIds: [],
+    wishlistIds: [],
+    customTricks: [],
+  };
+}
+
+function normalizeTrickProfile(value) {
+  const src = { ...createDefaultTrickProfile(), ...toObj(value, {}) };
+  const cleanIds = (input) =>
+    Array.from(
+      new Set(
+        toArray(input)
+          .map((v) => String(v || "").trim())
+          .filter(Boolean)
+      )
+    ).slice(0, 1200);
+  const customTricks = toArray(src.customTricks)
+    .map((item) => {
+      const name = String(item?.name || "").trim();
+      const category = String(item?.category || "street")
+        .trim()
+        .toLowerCase();
+      if (!name) return null;
+      const id = String(item?.id || trickIdFromName(category || "street", name));
+      return {
+        id,
+        name,
+        category: ["street", "vert", "pool_bowl", "combi", "mega"].includes(category) ? category : "street",
+      };
+    })
+    .filter(Boolean)
+    .slice(0, 500);
+  const validCustomIds = new Set(customTricks.map((x) => x.id));
+  const validIds = new Set([...Object.keys(SKATE_TRICK_LIBRARY_BY_ID), ...validCustomIds]);
+  const learnedIds = cleanIds(src.learnedIds).filter((id) => validIds.has(id));
+  const wishlistIds = cleanIds(src.wishlistIds).filter((id) => validIds.has(id));
+  return { learnedIds, wishlistIds, customTricks };
+}
+
+function normalizeHexColor(value, fallback = "#84cc16") {
+  const raw = String(value || "").trim();
+  if (/^#[0-9a-f]{6}$/i.test(raw)) return raw.toLowerCase();
+  if (/^#[0-9a-f]{3}$/i.test(raw)) {
+    const [r, g, b] = raw.slice(1).split("");
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return fallback;
+}
+
+function normalizeMoneyAmount(value, fallback = 0) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num < 0) return fallback;
+  return Math.round(num * 100) / 100;
+}
+
+function normalizeCurrencyCode(value, fallback = "USD") {
+  const allowed = new Set(["USD", "CAD", "MXN", "EUR", "GBP", "JPY", "KRW", "PHP", "THB", "AUD", "NZD"]);
+  const code = String(value || "")
+    .trim()
+    .toUpperCase();
+  if (allowed.has(code)) return code;
+  return allowed.has(fallback) ? fallback : "USD";
+}
+
+function normalizeImageOrExternalUrl(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^data:image\//i.test(raw)) return raw;
+  return normalizeExternalUrl(raw);
+}
+
+function createDefaultAcademyState() {
+  return {
+    programName: "First Class Skate",
+    enabled: true,
+    membersOnly: true,
+    memberIds: [],
+    branding: {
+      logoUrl: "",
+      bannerUrl: "",
+      accentColor: "#84cc16",
+      cardColor: "#0f172a",
+      textColor: "#ffffff",
+      subtitle: "",
+    },
+    fees: {
+      enabled: false,
+      currency: "USD",
+      monthlyPrice: 0,
+      yearlyPrice: 0,
+      dropInPrice: 0,
+      privateLessonPrice: 0,
+      paymentUrl: "",
+      notes: "",
+    },
+    courses: [],
+  };
+}
+
+function normalizeAcademyState(value) {
+  const src = { ...createDefaultAcademyState(), ...toObj(value, {}) };
+  const srcBranding = { ...createDefaultAcademyState().branding, ...toObj(src.branding, {}) };
+  const srcFees = { ...createDefaultAcademyState().fees, ...toObj(src.fees, {}) };
+  return {
+    programName: String(src.programName || "First Class Skate").trim() || "First Class Skate",
+    enabled: src.enabled !== false,
+    membersOnly: src.membersOnly !== false,
+    memberIds: Array.from(
+      new Set(
+        toArray(src.memberIds)
+          .map((v) => String(v || "").trim())
+          .filter(Boolean)
+      )
+    ),
+    branding: {
+      logoUrl: normalizeImageOrExternalUrl(srcBranding.logoUrl),
+      bannerUrl: normalizeImageOrExternalUrl(srcBranding.bannerUrl),
+      accentColor: normalizeHexColor(srcBranding.accentColor, "#84cc16"),
+      cardColor: normalizeHexColor(srcBranding.cardColor, "#0f172a"),
+      textColor: normalizeHexColor(srcBranding.textColor, "#ffffff"),
+      subtitle: String(srcBranding.subtitle || "").slice(0, 140),
+    },
+    fees: {
+      enabled: !!srcFees.enabled,
+      currency: normalizeCurrencyCode(srcFees.currency, "USD"),
+      monthlyPrice: normalizeMoneyAmount(srcFees.monthlyPrice, 0),
+      yearlyPrice: normalizeMoneyAmount(srcFees.yearlyPrice, 0),
+      dropInPrice: normalizeMoneyAmount(srcFees.dropInPrice, 0),
+      privateLessonPrice: normalizeMoneyAmount(srcFees.privateLessonPrice, 0),
+      paymentUrl: normalizeExternalUrl(srcFees.paymentUrl || ""),
+      notes: String(srcFees.notes || "").slice(0, 500),
+    },
+    courses: toArray(src.courses)
+      .map((course) => {
+        const title = String(course?.title || "").trim();
+        if (!title) return null;
+        return {
+          id: String(course?.id || `ac-${uid()}`),
+          title,
+          summary: String(course?.summary || ""),
+          level: String(course?.level || "All Levels"),
+          media: toArray(course?.media).map((m) => ({
+            id: String(m?.id || `acm-${uid()}`),
+            type: String(m?.type || ""),
+            name: String(m?.name || ""),
+            size: Math.max(0, Number(m?.size) || 0),
+            url: String(m?.url || ""),
+            dataUrl: String(m?.dataUrl || ""),
+            trickAssist: normalizeTrickAssist(m?.trickAssist, m?.name || ""),
+          })),
+          createdBy: String(course?.createdBy || ""),
+          createdAt: String(course?.createdAt || new Date().toISOString()),
+        };
+      })
+      .filter(Boolean)
+      .slice(0, 300),
+  };
+}
 
 function isPlainObject(v) {
   return !!v && typeof v === "object" && !Array.isArray(v);
@@ -581,6 +1340,18 @@ function makeCloudSafeStoreShape(inputStore) {
           runs: toArray(state?.runs).map((r) => ({
             ...r,
             media: toArray(r?.media).map(makeCloudSafeMedia),
+          })),
+        },
+      ])
+    ),
+    academyBySkaterId: Object.fromEntries(
+      Object.entries(toObj(normalized.academyBySkaterId, {})).map(([k, state]) => [
+        k,
+        {
+          ...toObj(state, {}),
+          courses: toArray(state?.courses).map((course) => ({
+            ...toObj(course, {}),
+            media: toArray(course?.media).map(makeCloudSafeMedia),
           })),
         },
       ])
@@ -678,6 +1449,200 @@ function isOpenableExternalUrl(value) {
   }
 }
 
+function normalizeWeekday(value, fallback = "Friday") {
+  const allowed = new Set(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+  const raw = String(value || "").trim().toLowerCase();
+  const found = Array.from(allowed).find((day) => day.toLowerCase() === raw);
+  if (found) return found;
+  return allowed.has(fallback) ? fallback : "Friday";
+}
+
+function normalizeBackgroundPref(value) {
+  const src = toObj(value, {});
+  const modeRaw = String(src.mode || "").trim().toLowerCase();
+  const mode = modeRaw === "preset" || modeRaw === "image" ? modeRaw : "default";
+  const presetFallback = createDefaultBackgroundPref().presetKey;
+  const presetCandidate = String(src.presetKey || "").trim().toLowerCase();
+  const presetKey = BACKGROUND_PRESETS.some((p) => p.key === presetCandidate) ? presetCandidate : presetFallback;
+  const imageUrl = String(src.imageUrl || "");
+  const imageLayout = String(src.imageLayout || "").trim().toLowerCase() === "tile" ? "tile" : "fit";
+  return {
+    mode,
+    presetKey,
+    imageUrl: mode === "image" ? imageUrl : mode === "preset" ? "" : "",
+    imageLayout,
+  };
+}
+
+function normalizeUiLanguagePref(value, fallback = "auto") {
+  const next = String(value || "").trim();
+  if (UI_LANGUAGE_PREFS.has(next)) return next;
+  return UI_LANGUAGE_PREFS.has(fallback) ? fallback : "auto";
+}
+
+function detectUiLanguageFromNavigator() {
+  if (typeof navigator === "undefined") return "en";
+  const raw = String(navigator.language || "").toLowerCase();
+  if (raw.startsWith("zh-hant") || raw.startsWith("zh-tw") || raw.startsWith("zh-hk") || raw.startsWith("zh-mo")) return "zh-Hant";
+  if (raw.startsWith("zh")) return "zh-Hans";
+  if (raw.startsWith("ko")) return "ko";
+  if (raw.startsWith("ja")) return "ja";
+  if (raw.startsWith("th")) return "th";
+  if (raw.startsWith("fil") || raw.startsWith("tl")) return "fil";
+  if (raw.startsWith("es")) return "es";
+  if (raw.startsWith("fr")) return "fr";
+  if (raw.startsWith("de")) return "de";
+  if (raw.startsWith("it")) return "it";
+  if (raw.startsWith("pt-br")) return "pt-BR";
+  if (raw.startsWith("pt")) return "pt-PT";
+  if (raw.startsWith("ru")) return "ru";
+  if (raw.startsWith("uk")) return "uk";
+  if (raw.startsWith("pl")) return "pl";
+  if (raw.startsWith("nl")) return "nl";
+  if (raw.startsWith("tr")) return "tr";
+  if (raw.startsWith("ar")) return "ar";
+  if (raw.startsWith("hi")) return "hi";
+  if (raw.startsWith("id")) return "id";
+  if (raw.startsWith("vi")) return "vi";
+  if (raw.startsWith("ms")) return "ms";
+  if (raw.startsWith("sv")) return "sv";
+  if (raw.startsWith("no") || raw.startsWith("nb") || raw.startsWith("nn")) return "no";
+  if (raw.startsWith("da")) return "da";
+  if (raw.startsWith("fi")) return "fi";
+  if (raw.startsWith("ro")) return "ro";
+  if (raw.startsWith("el")) return "el";
+  if (raw.startsWith("he") || raw.startsWith("iw")) return "he";
+  return "en";
+}
+
+function resolveUiLanguage(pref) {
+  const normalized = normalizeUiLanguagePref(pref, "auto");
+  if (normalized === "auto") return detectUiLanguageFromNavigator();
+  return UI_LANGUAGE_PREFS.has(normalized) && normalized !== "auto" ? normalized : "en";
+}
+
+function localeFromUiLanguage(language) {
+  const normalized = resolveUiLanguage(language);
+  if (normalized === "zh-Hans") return "zh-CN";
+  if (normalized === "zh-Hant") return "zh-TW";
+  if (normalized === "ko") return "ko-KR";
+  if (normalized === "ja") return "ja-JP";
+  if (normalized === "fil") return "fil-PH";
+  if (normalized === "th") return "th-TH";
+  if (normalized === "es") return "es-ES";
+  if (normalized === "fr") return "fr-FR";
+  if (normalized === "de") return "de-DE";
+  if (normalized === "it") return "it-IT";
+  if (normalized === "pt-BR") return "pt-BR";
+  if (normalized === "pt-PT") return "pt-PT";
+  if (normalized === "ru") return "ru-RU";
+  if (normalized === "uk") return "uk-UA";
+  if (normalized === "pl") return "pl-PL";
+  if (normalized === "nl") return "nl-NL";
+  if (normalized === "tr") return "tr-TR";
+  if (normalized === "ar") return "ar-SA";
+  if (normalized === "hi") return "hi-IN";
+  if (normalized === "id") return "id-ID";
+  if (normalized === "vi") return "vi-VN";
+  if (normalized === "ms") return "ms-MY";
+  if (normalized === "sv") return "sv-SE";
+  if (normalized === "no") return "nb-NO";
+  if (normalized === "da") return "da-DK";
+  if (normalized === "fi") return "fi-FI";
+  if (normalized === "ro") return "ro-RO";
+  if (normalized === "el") return "el-GR";
+  if (normalized === "he") return "he-IL";
+  return "en-US";
+}
+
+function openMeteoLanguageCode(language) {
+  const normalized = resolveUiLanguage(language);
+  if (normalized === "zh-Hans") return "zh";
+  if (normalized === "zh-Hant") return "zh";
+  if (normalized === "ko") return "ko";
+  if (normalized === "ja") return "ja";
+  if (normalized === "th") return "th";
+  if (normalized === "es") return "es";
+  if (normalized === "fr") return "fr";
+  if (normalized === "de") return "de";
+  if (normalized === "it") return "it";
+  if (normalized === "pt-BR" || normalized === "pt-PT") return "pt";
+  if (normalized === "ru") return "ru";
+  if (normalized === "uk") return "uk";
+  if (normalized === "pl") return "pl";
+  if (normalized === "nl") return "nl";
+  if (normalized === "tr") return "tr";
+  if (normalized === "ar") return "ar";
+  if (normalized === "hi") return "hi";
+  if (normalized === "id") return "id";
+  if (normalized === "vi") return "vi";
+  return "en";
+}
+
+function copyText(language, key, fallback = "") {
+  const lang = resolveUiLanguage(language);
+  return String(UI_COPY?.[lang]?.[key] || UI_COPY?.en?.[key] || fallback || key);
+}
+
+function normalizeProgramType(value, fallback = "family") {
+  const type = String(value || "").trim().toLowerCase();
+  if (PROGRAM_TYPE_OPTIONS.includes(type)) return type;
+  return PROGRAM_TYPE_OPTIONS.includes(fallback) ? fallback : "family";
+}
+
+function normalizeProgramLevel(value, fallback = "youth") {
+  const level = String(value || "").trim().toLowerCase();
+  if (PROGRAM_LEVEL_OPTIONS.includes(level)) return level;
+  return PROGRAM_LEVEL_OPTIONS.includes(fallback) ? fallback : "youth";
+}
+
+function looksLikeEmail(value) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(value || "").trim());
+}
+
+function buildPayPalMeCheckoutUrl(paypalMeUrl, amountUsd) {
+  const normalized = normalizeExternalUrl(paypalMeUrl || "");
+  if (!isOpenableExternalUrl(normalized)) return "";
+  try {
+    const parsed = new URL(normalized);
+    const host = parsed.hostname.toLowerCase();
+    if (host !== "paypal.me" && host !== "www.paypal.me") return normalized;
+    const pathParts = parsed.pathname.split("/").filter(Boolean);
+    if (!pathParts.length) return normalized;
+    const lastSegment = String(pathParts[pathParts.length - 1] || "");
+    if (/^\d+(?:\.\d{1,2})?$/.test(lastSegment)) pathParts.pop();
+    const amount = Math.max(0, Number(amountUsd) || 0);
+    const base = `https://paypal.me/${pathParts.join("/")}`;
+    return amount > 0 ? `${base}/${amount.toFixed(2)}` : base;
+  } catch {
+    return normalized;
+  }
+}
+
+function buildPayPalEmailCheckoutUrl(paypalEmail, amountUsd, itemName = "Pro Feedback Review") {
+  const email = String(paypalEmail || "").trim();
+  if (!looksLikeEmail(email)) return "";
+  const amount = Math.max(0, Number(amountUsd) || 0);
+  const params = new URLSearchParams({
+    cmd: "_xclick",
+    business: email,
+    item_name: String(itemName || "Pro Feedback Review"),
+    currency_code: "USD",
+  });
+  if (amount > 0) params.set("amount", amount.toFixed(2));
+  return `https://www.paypal.com/cgi-bin/webscr?${params.toString()}`;
+}
+
+function buildProFeedbackPaymentDetails(config, amountUsd, itemName = "Pro Feedback Review") {
+  const paypalMeUrl = buildPayPalMeCheckoutUrl(config?.paypalMeUrl || "", amountUsd);
+  if (isOpenableExternalUrl(paypalMeUrl)) return { url: paypalMeUrl, provider: "paypal" };
+  const paypalEmailUrl = buildPayPalEmailCheckoutUrl(config?.paypalEmail || "", amountUsd, itemName);
+  if (isOpenableExternalUrl(paypalEmailUrl)) return { url: paypalEmailUrl, provider: "paypal" };
+  const fallback = normalizeExternalUrl(config?.paymentUrl || "");
+  if (isOpenableExternalUrl(fallback)) return { url: fallback, provider: /paypal/i.test(fallback) ? "paypal" : "external" };
+  return { url: "", provider: "external" };
+}
+
 function musicProviderLabelFromUrl(value) {
   const url = String(value || "").toLowerCase();
   if (url.includes("music.youtube.com") || url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube Music";
@@ -749,7 +1714,7 @@ function normalizeStoreShape(raw) {
   const firstSkater = skaters[0] || { id: "s-1", name: "Skater" };
   const desiredSkaterMemberId = `m-skater-${firstSkater.id}`;
   const skaterMemberExistsById = membersBase.some((m) => m.id === desiredSkaterMemberId);
-  const members =
+  let members =
     !membersBase.length || hasSkaterMember || !firstSkater?.id
       ? membersBase
       : [
@@ -763,6 +1728,20 @@ function normalizeStoreShape(raw) {
             biometricCredentialId: "",
           },
         ];
+  if (members.length && !members.some((m) => m.role === "proskater")) {
+    const defaultProMemberId = "m-pro-1";
+    members = [
+      ...members,
+      {
+        id: members.some((m) => m.id === defaultProMemberId) ? `m-${uid()}` : defaultProMemberId,
+        name: "Pro Skater",
+        role: "proskater",
+        pin: "",
+        photoUrl: "",
+        biometricCredentialId: "",
+      },
+    ];
+  }
 
   const sessions = toArray(src.sessions).map((s) => {
     const tasks = toArray(s?.tasks).map((t) => ({
@@ -793,6 +1772,7 @@ function normalizeStoreShape(raw) {
         url: String(m?.url || ""),
         dataUrl: String(m?.dataUrl || ""),
         comment: String(m?.comment || ""),
+        trickAssist: normalizeTrickAssist(m?.trickAssist, m?.name || ""),
       })),
       comments: toArray(s?.comments).map((c) => ({
         id: String(c?.id || `c-${uid()}`),
@@ -926,9 +1906,20 @@ function normalizeStoreShape(raw) {
             size: Math.max(0, Number(m?.size) || 0),
             url: String(m?.url || ""),
             dataUrl: String(m?.dataUrl || ""),
+            trickAssist: normalizeTrickAssist(m?.trickAssist, m?.name || ""),
           })),
         })),
       ])
+      .filter(([k]) => k)
+  );
+  const trickProfileBySkaterId = Object.fromEntries(
+    Object.entries(toObj(src.trickProfileBySkaterId, {}))
+      .map(([skaterId, profile]) => [String(skaterId || ""), normalizeTrickProfile(profile)])
+      .filter(([k]) => k)
+  );
+  const academyBySkaterId = Object.fromEntries(
+    Object.entries(toObj(src.academyBySkaterId, {}))
+      .map(([skaterId, state]) => [String(skaterId || ""), normalizeAcademyState(state)])
       .filter(([k]) => k)
   );
   const proFeedbackSrc = { ...createDefaultProFeedback(), ...toObj(src.proFeedback, {}) };
@@ -936,26 +1927,45 @@ function normalizeStoreShape(raw) {
     Object.entries(toObj(proFeedbackSrc.requestsBySkaterId, {}))
       .map(([skaterId, list]) => [
         String(skaterId || ""),
-        toArray(list).map((item) => ({
-          id: String(item?.id || `pfr-${uid()}`),
-          skaterId: String(item?.skaterId || skaterId || ""),
-          skaterName: String(item?.skaterName || ""),
-          sportKey: normalizeSportKey(item?.sportKey || trainingSportBySkaterId?.[String(skaterId || "")] || "skate", "skate"),
-          title: String(item?.title || "").trim(),
-          question: String(item?.question || "").trim(),
-          clipUrl: normalizeExternalUrl(item?.clipUrl || ""),
-          preferredResponse: String(item?.preferredResponse || "").trim(),
-          requestedBy: String(item?.requestedBy || ""),
-          requestedByRole: String(item?.requestedByRole || ""),
-          chargeUsd: Math.max(0, Number(item?.chargeUsd) || 0),
-          paymentStatus: String(item?.paymentStatus || "").toLowerCase() === "paid" ? "paid" : "unpaid",
-          status: ["pending", "in-review", "delivered", "closed"].includes(String(item?.status || "").toLowerCase())
-            ? String(item.status).toLowerCase()
-            : "pending",
-          proReply: String(item?.proReply || ""),
-          createdAt: String(item?.createdAt || new Date().toISOString()),
-          updatedAt: String(item?.updatedAt || item?.createdAt || new Date().toISOString()),
-        })),
+        toArray(list).map((item) => {
+          const chargeUsd = Math.max(0, Number(item?.chargeUsd) || 0);
+          const ownerShareRaw = Number(item?.ownerShareUsd);
+          const defaultOwnerShare = Math.max(0, Number(proFeedbackSrc.ownerShareUsd) || 0);
+          const ownerShareUsd = Math.max(0, Math.min(chargeUsd, Number.isFinite(ownerShareRaw) ? ownerShareRaw : defaultOwnerShare));
+          const paymentUrl = normalizeExternalUrl(item?.paymentUrl || item?.paypalPayUrl || "");
+          const paymentProviderRaw = String(item?.paymentProvider || "").toLowerCase();
+          const paymentProvider = paymentProviderRaw === "paypal" || /paypal/i.test(paymentUrl) ? "paypal" : "external";
+          return {
+            id: String(item?.id || `pfr-${uid()}`),
+            skaterId: String(item?.skaterId || skaterId || ""),
+            skaterName: String(item?.skaterName || ""),
+            sportKey: normalizeSportKey(item?.sportKey || trainingSportBySkaterId?.[String(skaterId || "")] || "skate", "skate"),
+            title: String(item?.title || "").trim(),
+            question: String(item?.question || "").trim(),
+            clipUrl: normalizeExternalUrl(item?.clipUrl || ""),
+            preferredResponse: String(item?.preferredResponse || "").trim(),
+            requestedBy: String(item?.requestedBy || ""),
+            requestedByRole: String(item?.requestedByRole || ""),
+            chargeUsd,
+            ownerShareUsd,
+            paymentStatus: String(item?.paymentStatus || "").toLowerCase() === "paid" ? "paid" : "unpaid",
+            paymentProvider,
+            paymentUrl,
+            payoutStatus: String(item?.payoutStatus || "").toLowerCase() === "sent" ? "sent" : "pending",
+            payoutSentAt: String(item?.payoutSentAt || ""),
+            payoutSentById: String(item?.payoutSentById || ""),
+            payoutSentByName: String(item?.payoutSentByName || ""),
+            status: ["pending", "in-review", "delivered", "closed"].includes(String(item?.status || "").toLowerCase())
+              ? String(item.status).toLowerCase()
+              : "pending",
+            proReply: String(item?.proReply || ""),
+            reviewedById: String(item?.reviewedById || ""),
+            reviewedByName: String(item?.reviewedByName || ""),
+            reviewedAt: String(item?.reviewedAt || ""),
+            createdAt: String(item?.createdAt || new Date().toISOString()),
+            updatedAt: String(item?.updatedAt || item?.createdAt || new Date().toISOString()),
+          };
+        }),
       ])
       .filter(([k]) => k)
   );
@@ -987,6 +1997,8 @@ function normalizeStoreShape(raw) {
     contestBySkaterId: toObj(src.contestBySkaterId, {}),
     coachCornerBySkaterId: toObj(src.coachCornerBySkaterId, {}),
     skateDaysBySkaterId,
+    trickProfileBySkaterId,
+    academyBySkaterId,
     trainingSportBySkaterId,
     primarySportBySkaterId,
     sportPackageBySkaterId,
@@ -1032,6 +2044,36 @@ function normalizeStoreShape(raw) {
       ...INITIAL_STORE.appPrefs,
       ...toObj(src.appPrefs, {}),
       theme: String(src?.appPrefs?.theme) === "light" ? "light" : "dark",
+      language: normalizeUiLanguagePref(src?.appPrefs?.language, INITIAL_STORE.appPrefs.language),
+      backgroundByMemberId: Object.fromEntries(
+        Object.entries(toObj(src?.appPrefs?.backgroundByMemberId, {}))
+          .map(([memberId, pref]) => [String(memberId || ""), normalizeBackgroundPref(pref)])
+          .filter(([memberId]) => memberId)
+      ),
+      copyOverridesByLanguage: Object.fromEntries(
+        Object.entries(toObj(src?.appPrefs?.copyOverridesByLanguage, {}))
+          .map(([langKey, langMap]) => [
+            String(langKey || ""),
+            Object.fromEntries(
+              Object.entries(toObj(langMap, {}))
+                .map(([copyKey, text]) => [String(copyKey || ""), String(text || "")])
+                .filter(([copyKey, text]) => copyKey && text)
+            ),
+          ])
+          .filter(([langKey]) => langKey)
+      ),
+    },
+    programProfile: {
+      ...createDefaultProgramProfile(),
+      ...toObj(src.programProfile, {}),
+      enabled: !!src?.programProfile?.enabled,
+      programType: normalizeProgramType(src?.programProfile?.programType, createDefaultProgramProfile().programType),
+      level: normalizeProgramLevel(src?.programProfile?.level, createDefaultProgramProfile().level),
+      schoolName: String(src?.programProfile?.schoolName || "").trim(),
+      teamName: String(src?.programProfile?.teamName || "").trim(),
+      cityState: String(src?.programProfile?.cityState || "").trim(),
+      season: String(src?.programProfile?.season || "").trim(),
+      notes: String(src?.programProfile?.notes || ""),
     },
     cloudSync: {
       ...DEFAULT_CLOUD_SYNC,
@@ -1061,11 +2103,118 @@ function normalizeStoreShape(raw) {
       ...proFeedbackSrc,
       enabled: !!proFeedbackSrc.enabled,
       priceUsd: Math.max(0, Number(proFeedbackSrc.priceUsd) || 0),
+      ownerShareUsd: Math.max(
+        0,
+        Math.min(
+          Math.max(0, Number(proFeedbackSrc.priceUsd) || 0),
+          Number(proFeedbackSrc.ownerShareUsd) || createDefaultProFeedback().ownerShareUsd || 0
+        )
+      ),
+      weeklyPayoutDay: normalizeWeekday(proFeedbackSrc.weeklyPayoutDay, createDefaultProFeedback().weeklyPayoutDay || "Friday"),
+      paypalMeUrl: normalizeExternalUrl(proFeedbackSrc.paypalMeUrl || ""),
+      paypalEmail: String(proFeedbackSrc.paypalEmail || "").trim(),
       paymentUrl: normalizeExternalUrl(proFeedbackSrc.paymentUrl || ""),
       instructions: String(proFeedbackSrc.instructions || createDefaultProFeedback().instructions || ""),
       requestsBySkaterId: proFeedbackRequestsBySkaterId,
     },
   };
+
+  // Migration/seed: always provide a dedicated Kiko test skater profile and linked skater login.
+  const KIKO_TEST_SKATER_NAME = "Kiko Test";
+  const KIKO_TEST_SKATER_ID = "s-kiko-test";
+  const KIKO_TEST_MEMBER_ID = "m-skater-kiko-test";
+  const existingKikoSkater =
+    toArray(merged.skaters).find((s) => String(s?.id || "") === KIKO_TEST_SKATER_ID) ||
+    toArray(merged.skaters).find((s) => String(s?.name || "").trim().toLowerCase() === KIKO_TEST_SKATER_NAME.toLowerCase());
+  if (!existingKikoSkater) {
+    merged.skaters = [...toArray(merged.skaters), { id: KIKO_TEST_SKATER_ID, name: KIKO_TEST_SKATER_NAME, photoUrl: "" }];
+  }
+  const activeKikoSkater =
+    toArray(merged.skaters).find((s) => String(s?.id || "") === KIKO_TEST_SKATER_ID) ||
+    toArray(merged.skaters).find((s) => String(s?.name || "").trim().toLowerCase() === KIKO_TEST_SKATER_NAME.toLowerCase()) ||
+    null;
+  const activeKikoSkaterId = String(activeKikoSkater?.id || "");
+  if (activeKikoSkaterId) {
+    const hasKikoSkaterMember = toArray(merged.members).some(
+      (m) =>
+        String(m?.role || "") === "skater" &&
+        (String(m?.id || "") === KIKO_TEST_MEMBER_ID || String(m?.name || "").trim().toLowerCase() === KIKO_TEST_SKATER_NAME.toLowerCase())
+    );
+    if (!hasKikoSkaterMember) {
+      merged.members = [
+        ...toArray(merged.members),
+        {
+          id: toArray(merged.members).some((m) => String(m?.id || "") === KIKO_TEST_MEMBER_ID) ? `m-${uid()}` : KIKO_TEST_MEMBER_ID,
+          name: KIKO_TEST_SKATER_NAME,
+          role: "skater",
+          pin: "",
+          photoUrl: "",
+          biometricCredentialId: "",
+        },
+      ];
+    }
+
+    merged.trainingSportBySkaterId = {
+      ...toObj(merged.trainingSportBySkaterId, {}),
+      [activeKikoSkaterId]: normalizeSportKey(toObj(merged.trainingSportBySkaterId, {})[activeKikoSkaterId], "skate"),
+    };
+    merged.primarySportBySkaterId = {
+      ...toObj(merged.primarySportBySkaterId, {}),
+      [activeKikoSkaterId]: normalizeSportKey(toObj(merged.primarySportBySkaterId, {})[activeKikoSkaterId], "skate"),
+    };
+    merged.sportPackageBySkaterId = {
+      ...toObj(merged.sportPackageBySkaterId, {}),
+      [activeKikoSkaterId]: normalizeSportPackage(toObj(merged.sportPackageBySkaterId, {})[activeKikoSkaterId], SPORT_PACKAGE_SINGLE),
+    };
+    const nextPlansBySport = { ...toObj(merged.plansBySportBySkaterId, {}) };
+    const nextKikoPlansBySport = { ...toObj(nextPlansBySport[activeKikoSkaterId], {}) };
+    const existingKikoSkatePlans = normalizePlansMap(toObj(nextKikoPlansBySport.skate, {}), {});
+    const kikoTemplatePlans = normalizePlansMap(KIKO_TEST_PLAN_TEMPLATE, KIKO_TEST_PLAN_TEMPLATE);
+    const mergedKikoSkatePlans = { ...existingKikoSkatePlans };
+    for (const [dayName, tasks] of Object.entries(kikoTemplatePlans)) {
+      if (!mergedKikoSkatePlans[dayName]) mergedKikoSkatePlans[dayName] = tasks;
+    }
+    if (!Object.keys(mergedKikoSkatePlans).length) {
+      nextKikoPlansBySport.skate = normalizePlansMap(KIKO_TEST_PLAN_TEMPLATE, KIKO_TEST_PLAN_TEMPLATE);
+    } else {
+      nextKikoPlansBySport.skate = mergedKikoSkatePlans;
+    }
+    nextPlansBySport[activeKikoSkaterId] = nextKikoPlansBySport;
+    merged.plansBySportBySkaterId = nextPlansBySport;
+
+    merged.academyBySkaterId = {
+      ...toObj(merged.academyBySkaterId, {}),
+      [activeKikoSkaterId]: normalizeAcademyState(toObj(merged.academyBySkaterId, {})[activeKikoSkaterId]),
+    };
+    merged.trickProfileBySkaterId = {
+      ...toObj(merged.trickProfileBySkaterId, {}),
+      [activeKikoSkaterId]: normalizeTrickProfile(toObj(merged.trickProfileBySkaterId, {})[activeKikoSkaterId]),
+    };
+    merged.contestBySkaterId = {
+      ...toObj(merged.contestBySkaterId, {}),
+      [activeKikoSkaterId]: toObj(toObj(merged.contestBySkaterId, {})[activeKikoSkaterId], {}),
+    };
+    merged.coachCornerBySkaterId = {
+      ...toObj(merged.coachCornerBySkaterId, {}),
+      [activeKikoSkaterId]: toArray(toObj(merged.coachCornerBySkaterId, {})[activeKikoSkaterId]),
+    };
+    merged.skateDaysBySkaterId = {
+      ...toObj(merged.skateDaysBySkaterId, {}),
+      [activeKikoSkaterId]: toArray(toObj(merged.skateDaysBySkaterId, {})[activeKikoSkaterId]),
+    };
+    merged.chatBySkaterId = {
+      ...toObj(merged.chatBySkaterId, {}),
+      [activeKikoSkaterId]: toArray(toObj(merged.chatBySkaterId, {})[activeKikoSkaterId]),
+    };
+    merged.xpBySkaterId = {
+      ...toObj(merged.xpBySkaterId, {}),
+      [activeKikoSkaterId]: Math.max(0, Number(toObj(merged.xpBySkaterId, {})[activeKikoSkaterId]) || 0),
+    };
+    merged.xpMilestonesBySkaterId = {
+      ...toObj(merged.xpMilestonesBySkaterId, {}),
+      [activeKikoSkaterId]: Math.max(0, Number(toObj(merged.xpMilestonesBySkaterId, {})[activeKikoSkaterId]) || 0),
+    };
+  }
 
   const mergedActiveSkaterId = String(merged?.ui?.activeSkaterId || merged?.skaters?.[0]?.id || "");
   const mergedPrimarySport = normalizeSportKey(
@@ -1110,10 +2259,10 @@ function pct(a, b) {
   return Math.max(0, Math.min(100, Math.round((a / b) * 100)));
 }
 
-function formatShortDate(iso) {
+function formatShortDate(iso, locale = undefined) {
   const [y, m, d] = iso.split("-").map(Number);
   const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+  return dt.toLocaleDateString(locale, { month: "short", day: "numeric" });
 }
 
 function isValidISODate(iso) {
@@ -1130,12 +2279,12 @@ function parseLocalDateTime(dateISO, timeHHMM = "00:00") {
   return new Date(`${safeDate}T${safeTime}:00`);
 }
 
-function formatStandardTime(timeHHMM = "00:00") {
+function formatStandardTime(timeHHMM = "00:00", locale = undefined) {
   const safeTime = isValidTimeHHMM(timeHHMM) ? String(timeHHMM) : "00:00";
   const [hh, mm] = safeTime.split(":").map((v) => Number(v) || 0);
   const dt = new Date();
   dt.setHours(hh, mm, 0, 0);
-  return dt.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return dt.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 }
 
 function toISODateLocal(d) {
@@ -1160,10 +2309,10 @@ function shiftMonth(monthKey, delta) {
   return monthKeyFromDate(dt);
 }
 
-function formatMonthLabel(monthKey) {
+function formatMonthLabel(monthKey, locale = undefined) {
   const [y, m] = String(monthKey || "").split("-").map(Number);
   const dt = new Date(Number(y) || new Date().getFullYear(), Math.max(0, (Number(m) || 1) - 1), 1);
-  return dt.toLocaleDateString(undefined, { month: "long", year: "numeric" });
+  return dt.toLocaleDateString(locale, { month: "long", year: "numeric" });
 }
 
 function buildMonthGrid(monthKey) {
@@ -1505,6 +2654,393 @@ function drawOverlayStrokes(ctx, strokes, width, height) {
   }
 }
 
+const STICK_FIGURE_PRESET_PATCHES = {
+  neutral: { turn: 0, bend: 0.36, scale: 1, y: 0.6 },
+  bowl_vert: { turn: 0.22, bend: 0.62, scale: 1.04, y: 0.62 },
+  deep_turn: { turn: 0.42, bend: 0.78, scale: 1.06, y: 0.64 },
+  fs_big_air_grab: { turn: 0.56, bend: 0.76, scale: 1.08, y: 0.63 },
+  bs_big_air_grab: { turn: -0.56, bend: 0.76, scale: 1.08, y: 0.63 },
+  fakie_smith: { turn: -0.24, bend: 0.68, scale: 1.03, y: 0.64 },
+  fs_invert: { turn: 0.4, bend: 0.74, scale: 1.07, y: 0.64 },
+  bs_invert: { turn: -0.4, bend: 0.74, scale: 1.07, y: 0.64 },
+  lien_air: { turn: -0.3, bend: 0.72, scale: 1.06, y: 0.64 },
+  crail_air: { turn: 0.32, bend: 0.72, scale: 1.06, y: 0.64 },
+  slash_grind: { turn: 0.28, bend: 0.58, scale: 1.02, y: 0.62 },
+  rock_n_roll: { turn: 0.16, bend: 0.6, scale: 1.02, y: 0.62 },
+  tony_900: { turn: 0.1, bend: 0.83, scale: 1.1, y: 0.66 },
+  tony_mctwist: { turn: -0.62, bend: 0.82, scale: 1.1, y: 0.65 },
+  tony_madonna: { turn: 0.46, bend: 0.78, scale: 1.12, y: 0.66 },
+  tony_stalefish_540: { turn: -0.38, bend: 0.8, scale: 1.09, y: 0.65 },
+  tony_varial_540: { turn: 0.48, bend: 0.82, scale: 1.1, y: 0.66 },
+  tony_backside_air: { turn: -0.28, bend: 0.74, scale: 1.06, y: 0.64 },
+  tony_frontside_air: { turn: 0.28, bend: 0.74, scale: 1.06, y: 0.64 },
+  cab_caballerial: { turn: -0.34, bend: 0.7, scale: 1.05, y: 0.63 },
+  cab_half_cab: { turn: -0.2, bend: 0.62, scale: 1.02, y: 0.62 },
+  cab_frontside_boardslide: { turn: 0.3, bend: 0.64, scale: 1.02, y: 0.62 },
+  cab_backside_boneless: { turn: -0.36, bend: 0.7, scale: 1.06, y: 0.64 },
+  cab_switch_invert: { turn: 0.42, bend: 0.78, scale: 1.08, y: 0.65 },
+  burnquist_fakie_900: { turn: -0.68, bend: 0.82, scale: 1.12, y: 0.67 },
+  burnquist_wee_willy_grind: { turn: 0.28, bend: 0.6, scale: 1.01, y: 0.62 },
+  burnquist_fakie_5_0_kickflip_out: { turn: -0.26, bend: 0.68, scale: 1.04, y: 0.64 },
+  burnquist_switch_stance_flow: { turn: -0.2, bend: 0.62, scale: 1.03, y: 0.63 },
+  burnquist_mega_launch: { turn: 0.18, bend: 0.84, scale: 1.14, y: 0.67 },
+  clairmont_big_air: { turn: 0.58, bend: 0.84, scale: 1.13, y: 0.67 },
+  jackalope_big_air: { turn: 0.52, bend: 0.86, scale: 1.14, y: 0.67 },
+  greyson_frontside_air: { turn: 0.5, bend: 0.76, scale: 1.09, y: 0.65 },
+  greyson_layback_carve: { turn: 0.44, bend: 0.72, scale: 1.06, y: 0.64 },
+  greyson_invert: { turn: 0.36, bend: 0.78, scale: 1.08, y: 0.65 },
+  greyson_lien_air: { turn: -0.26, bend: 0.72, scale: 1.06, y: 0.64 },
+  greyson_stalefish: { turn: -0.32, bend: 0.74, scale: 1.07, y: 0.64 },
+  kiko_bowl_flow: { turn: 0.24, bend: 0.66, scale: 1.05, y: 0.63 },
+  kiko_rock_roll: { turn: 0.16, bend: 0.6, scale: 1.02, y: 0.62 },
+  kiko_backside_air: { turn: -0.24, bend: 0.72, scale: 1.06, y: 0.64 },
+  kiko_frontside_grind: { turn: 0.22, bend: 0.58, scale: 1.02, y: 0.62 },
+  kiko_slash_grind: { turn: 0.3, bend: 0.56, scale: 1.02, y: 0.62 },
+  kiko_fakie_rock: { turn: -0.18, bend: 0.62, scale: 1.02, y: 0.62 },
+};
+
+const STICK_FIGURE_PRESET_OPTIONS = [
+  { key: "neutral", label: "Neutral", group: "Core" },
+  { key: "bowl_vert", label: "Bowl/Vert", group: "Core" },
+  { key: "deep_turn", label: "Deep Turn", group: "Core" },
+  { key: "fs_big_air_grab", label: "FS Big Air Grab", group: "Core" },
+  { key: "bs_big_air_grab", label: "BS Big Air Grab", group: "Core" },
+  { key: "fakie_smith", label: "Fakie Smith", group: "Core" },
+  { key: "fs_invert", label: "FS Invert", group: "Core" },
+  { key: "bs_invert", label: "BS Invert", group: "Core" },
+  { key: "lien_air", label: "Lien Air", group: "Core" },
+  { key: "crail_air", label: "Crail Air", group: "Core" },
+  { key: "slash_grind", label: "Slash Grind", group: "Core" },
+  { key: "rock_n_roll", label: "Rock N Roll", group: "Core" },
+  { key: "tony_900", label: "Tony Hawk 900", group: "Tony Hawk" },
+  { key: "tony_mctwist", label: "Tony Hawk McTwist", group: "Tony Hawk" },
+  { key: "tony_madonna", label: "Tony Hawk Madonna", group: "Tony Hawk" },
+  { key: "tony_stalefish_540", label: "Tony Hawk Stalefish 540", group: "Tony Hawk" },
+  { key: "tony_varial_540", label: "Tony Hawk Varial 540", group: "Tony Hawk" },
+  { key: "tony_backside_air", label: "Tony Hawk Backside Air", group: "Tony Hawk" },
+  { key: "tony_frontside_air", label: "Tony Hawk Frontside Air", group: "Tony Hawk" },
+  { key: "cab_caballerial", label: "Steve Cab Caballerial", group: "Steve Caballero" },
+  { key: "cab_half_cab", label: "Steve Cab Half Cab", group: "Steve Caballero" },
+  { key: "cab_frontside_boardslide", label: "Steve Cab FS Boardslide", group: "Steve Caballero" },
+  { key: "cab_backside_boneless", label: "Steve Cab BS Boneless", group: "Steve Caballero" },
+  { key: "cab_switch_invert", label: "Steve Cab Switch Invert", group: "Steve Caballero" },
+  { key: "burnquist_fakie_900", label: "Bob Burnquist Fakie 900", group: "Bob Burnquist" },
+  { key: "burnquist_wee_willy_grind", label: "Bob Burnquist Wee Willy", group: "Bob Burnquist" },
+  { key: "burnquist_fakie_5_0_kickflip_out", label: "Bob Burnquist Fakie 5-0 Kickflip Out", group: "Bob Burnquist" },
+  { key: "burnquist_switch_stance_flow", label: "Bob Burnquist Switch Stance", group: "Bob Burnquist" },
+  { key: "burnquist_mega_launch", label: "Bob Burnquist Mega Launch", group: "Bob Burnquist" },
+  { key: "clairmont_big_air", label: "Clairmont Big Air (San Diego)", group: "San Diego Parks" },
+  { key: "jackalope_big_air", label: "Jackalope Big Air", group: "Events" },
+  { key: "greyson_frontside_air", label: "Greyson Fletcher FS Air", group: "Greyson Fletcher" },
+  { key: "greyson_layback_carve", label: "Greyson Fletcher Layback", group: "Greyson Fletcher" },
+  { key: "greyson_invert", label: "Greyson Fletcher Invert", group: "Greyson Fletcher" },
+  { key: "greyson_lien_air", label: "Greyson Fletcher Lien Air", group: "Greyson Fletcher" },
+  { key: "greyson_stalefish", label: "Greyson Fletcher Stalefish", group: "Greyson Fletcher" },
+  { key: "kiko_bowl_flow", label: "Kiko Francisco Bowl Flow", group: "Kiko Francisco" },
+  { key: "kiko_rock_roll", label: "Kiko Francisco Rock & Roll", group: "Kiko Francisco" },
+  { key: "kiko_backside_air", label: "Kiko Francisco Backside Air", group: "Kiko Francisco" },
+  { key: "kiko_frontside_grind", label: "Kiko Francisco Frontside Grind", group: "Kiko Francisco" },
+  { key: "kiko_slash_grind", label: "Kiko Francisco Slash Grind", group: "Kiko Francisco" },
+  { key: "kiko_fakie_rock", label: "Kiko Francisco Fakie Rock", group: "Kiko Francisco" },
+];
+const STICK_FIGURE_PRESET_LABELS = Object.fromEntries(STICK_FIGURE_PRESET_OPTIONS.map((p) => [p.key, p.label]));
+const STICK_FIGURE_QUICK_PRESET_KEYS = [
+  "bowl_vert",
+  "fs_big_air_grab",
+  "bs_big_air_grab",
+  "fakie_smith",
+  "tony_900",
+  "cab_caballerial",
+  "burnquist_fakie_900",
+  "clairmont_big_air",
+  "jackalope_big_air",
+  "greyson_frontside_air",
+  "kiko_bowl_flow",
+];
+
+function getStickFigurePresetPatch(presetKey) {
+  return toObj(STICK_FIGURE_PRESET_PATCHES[String(presetKey || "").trim().toLowerCase()], {});
+}
+
+function normalizeStickFigureGuide(value, fallback = {}) {
+  const src = { ...toObj(fallback, {}), ...toObj(value, {}) };
+  const colorRaw = String(src.color || "#22d3ee").trim();
+  const color = /^#[0-9a-f]{3,8}$/i.test(colorRaw) ? colorRaw : "#22d3ee";
+  const turnRaw = Number(src.turn);
+  const bendRaw = Number(src.bend);
+  return {
+    enabled: !!src.enabled,
+    x: Math.max(0.08, Math.min(0.92, Number(src.x) || 0.5)),
+    y: Math.max(0.18, Math.min(0.92, Number(src.y) || 0.62)),
+    scale: Math.max(0.65, Math.min(1.55, Number(src.scale) || 1)),
+    opacity: Math.max(0.2, Math.min(1, Number(src.opacity) || 0.84)),
+    turn: Math.max(-1, Math.min(1, Number.isFinite(turnRaw) ? turnRaw : 0.22)),
+    bend: Math.max(0, Math.min(1, Number.isFinite(bendRaw) ? bendRaw : 0.62)),
+    color,
+    lineWidth: Math.max(1, Math.min(10, Number(src.lineWidth) || 3)),
+  };
+}
+
+function createDefaultStickFigureGuide(overrides = {}) {
+  return normalizeStickFigureGuide(
+    {
+      enabled: false,
+      x: 0.5,
+      y: 0.62,
+      scale: 1.04,
+      opacity: 0.84,
+      turn: 0.22,
+      bend: 0.62,
+      color: "#22d3ee",
+      lineWidth: 3,
+      ...toObj(overrides, {}),
+    },
+    { color: "#22d3ee" }
+  );
+}
+
+function buildStickFigureGeometry(guide, width, height) {
+  const safe = normalizeStickFigureGuide(guide);
+  const w = Math.max(1, Number(width) || 1);
+  const h = Math.max(1, Number(height) || 1);
+  const base = Math.min(w, h);
+  const bodyH = Math.max(base * 0.2, Math.min(base * 0.85, base * 0.56 * safe.scale));
+  const cx = safe.x * w;
+  const pelvisY = safe.y * h;
+  const turn = safe.turn;
+  const turnMag = Math.abs(turn);
+  const turnSign = turn === 0 ? 0 : turn > 0 ? 1 : -1;
+  const bend = safe.bend;
+  const shoulderWidth = bodyH * (0.32 - bend * 0.05);
+  const hipWidth = bodyH * (0.22 - bend * 0.03);
+  const torsoLeanX = bodyH * (0.04 + bend * 0.14) * turn;
+  const torsoDrop = bodyH * (0.05 + bend * 0.1);
+  const torsoBackY = pelvisY - (bodyH * 0.36 - torsoDrop * 0.4);
+  const headR = bodyH * 0.095;
+  const neck = { x: cx + torsoLeanX, y: torsoBackY + bodyH * 0.07 };
+  const headC = { x: neck.x + turn * bodyH * 0.02, y: neck.y - bodyH * 0.15 };
+  const shoulderL = {
+    x: neck.x - shoulderWidth * 0.5 + turn * bodyH * 0.03,
+    y: neck.y + bodyH * (0.035 + turn * 0.03),
+  };
+  const shoulderR = {
+    x: neck.x + shoulderWidth * 0.5 + turn * bodyH * 0.03,
+    y: neck.y + bodyH * (0.035 - turn * 0.03),
+  };
+  const hipL = { x: cx - hipWidth * 0.5, y: pelvisY + bodyH * (0.01 + turn * 0.015) };
+  const hipR = { x: cx + hipWidth * 0.5, y: pelvisY + bodyH * (0.01 - turn * 0.015) };
+
+  const buildArm = (sideSign, shoulder) => {
+    const frontFactor = turnSign * sideSign;
+    const elbow = {
+      x: shoulder.x + sideSign * bodyH * (0.13 - bend * 0.015) + frontFactor * bodyH * 0.05,
+      y: shoulder.y + bodyH * (0.155 + bend * 0.11 - frontFactor * 0.045),
+    };
+    const wrist = {
+      x: elbow.x + sideSign * bodyH * (0.11 + turnMag * 0.03) + frontFactor * bodyH * 0.04,
+      y: elbow.y + bodyH * (0.145 + bend * 0.09 - frontFactor * 0.05),
+    };
+    return { elbow, wrist };
+  };
+  const leftArm = buildArm(-1, shoulderL);
+  const rightArm = buildArm(1, shoulderR);
+  const elbowL = leftArm.elbow;
+  const elbowR = rightArm.elbow;
+  const wristL = leftArm.wrist;
+  const wristR = rightArm.wrist;
+
+  const buildLeg = (sideSign, hip) => {
+    const knee = {
+      x: hip.x + sideSign * bodyH * (0.058 + bend * 0.028) + turn * bodyH * 0.11,
+      y: hip.y + bodyH * (0.19 + bend * 0.18),
+    };
+    const ankle = {
+      x: knee.x + sideSign * bodyH * (0.03 + turnMag * 0.06) + turn * bodyH * 0.06,
+      y: knee.y + bodyH * (0.16 + bend * 0.12),
+    };
+    const foot = {
+      x: ankle.x + sideSign * bodyH * 0.085,
+      y: ankle.y + bodyH * 0.028,
+    };
+    return { knee, ankle, foot };
+  };
+  const leftLeg = buildLeg(-1, hipL);
+  const rightLeg = buildLeg(1, hipR);
+  const kneeL = leftLeg.knee;
+  const kneeR = rightLeg.knee;
+  const ankleL = leftLeg.ankle;
+  const ankleR = rightLeg.ankle;
+  const footL = leftLeg.foot;
+  const footR = rightLeg.foot;
+  return {
+    safe,
+    headR,
+    points: {
+      headC,
+      neck,
+      shoulderL,
+      shoulderR,
+      elbowL,
+      elbowR,
+      wristL,
+      wristR,
+      hipL,
+      hipR,
+      kneeL,
+      kneeR,
+      ankleL,
+      ankleR,
+      footL,
+      footR,
+    },
+  };
+}
+
+function stickFigureSegments(points) {
+  return [
+    [points.neck, points.shoulderL],
+    [points.neck, points.shoulderR],
+    [points.shoulderL, points.elbowL],
+    [points.elbowL, points.wristL],
+    [points.shoulderR, points.elbowR],
+    [points.elbowR, points.wristR],
+    [points.neck, points.hipL],
+    [points.neck, points.hipR],
+    [points.hipL, points.kneeL],
+    [points.kneeL, points.ankleL],
+    [points.ankleL, points.footL],
+    [points.hipR, points.kneeR],
+    [points.kneeR, points.ankleR],
+    [points.ankleR, points.footR],
+  ];
+}
+
+function stickFigureGuideLines(points) {
+  return [
+    [points.shoulderL, points.shoulderR],
+    [points.hipL, points.hipR],
+    [points.footL, points.footR],
+  ];
+}
+
+function drawStickFigureGuide(ctx, guide, width, height) {
+  if (!ctx || !guide?.enabled) return;
+  const { safe, headR, points } = buildStickFigureGeometry(guide, width, height);
+  const scale = Math.max(width, height) / 800;
+  const segments = stickFigureSegments(points);
+  const guideLines = stickFigureGuideLines(points);
+
+  ctx.save();
+  ctx.globalAlpha = safe.opacity;
+  ctx.strokeStyle = safe.color;
+  ctx.fillStyle = safe.color;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+  ctx.lineWidth = Math.max(1.2, safe.lineWidth * Math.max(0.7, scale));
+
+  ctx.beginPath();
+  ctx.arc(points.headC.x, points.headC.y, headR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.save();
+  ctx.globalAlpha = safe.opacity * 0.5;
+  ctx.setLineDash([Math.max(2, ctx.lineWidth * 1.3), Math.max(2, ctx.lineWidth * 1.1)]);
+  for (const [a, b] of guideLines) {
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+  ctx.restore();
+
+  for (const [a, b] of segments) {
+    ctx.beginPath();
+    ctx.moveTo(a.x, a.y);
+    ctx.lineTo(b.x, b.y);
+    ctx.stroke();
+  }
+
+  const jointRadius = Math.max(1.5, ctx.lineWidth * 0.5);
+  const joints = [
+    points.neck,
+    points.shoulderL,
+    points.shoulderR,
+    points.elbowL,
+    points.elbowR,
+    points.wristL,
+    points.wristR,
+    points.hipL,
+    points.hipR,
+    points.kneeL,
+    points.kneeR,
+    points.ankleL,
+    points.ankleR,
+    points.footL,
+    points.footR,
+  ];
+  for (const joint of joints) {
+    ctx.beginPath();
+    ctx.arc(joint.x, joint.y, jointRadius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  const handRadius = Math.max(2, jointRadius * 1.45);
+  for (const hand of [points.wristL, points.wristR]) {
+    ctx.beginPath();
+    ctx.arc(hand.x, hand.y, handRadius, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+function StickFigureOverlay({ guide }) {
+  if (!guide?.enabled) return null;
+  const { safe, headR, points } = buildStickFigureGeometry(guide, 100, 100);
+  const segments = stickFigureSegments(points);
+  const guideLines = stickFigureGuideLines(points);
+  const strokeWidth = Math.max(0.8, safe.lineWidth * 0.24);
+  const jointRadius = Math.max(0.35, strokeWidth * 0.45);
+  const handRadius = Math.max(0.5, jointRadius * 1.45);
+
+  return (
+    <svg className="absolute inset-0 h-full w-full pointer-events-none" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+      <g stroke={safe.color} fill={safe.color} strokeWidth={strokeWidth} strokeLinecap="round" strokeLinejoin="round" opacity={safe.opacity}>
+        <circle cx={points.headC.x} cy={points.headC.y} r={headR} fill="none" />
+        <g opacity="0.5" strokeDasharray="1.8 1.6">
+          {guideLines.map(([a, b], idx) => (
+            <line key={`gl-${idx}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+          ))}
+        </g>
+        {segments.map(([a, b], idx) => (
+          <line key={`sg-${idx}`} x1={a.x} y1={a.y} x2={b.x} y2={b.y} />
+        ))}
+        {[
+          points.neck,
+          points.shoulderL,
+          points.shoulderR,
+          points.elbowL,
+          points.elbowR,
+          points.wristL,
+          points.wristR,
+          points.hipL,
+          points.hipR,
+          points.kneeL,
+          points.kneeR,
+          points.ankleL,
+          points.ankleR,
+          points.footL,
+          points.footR,
+        ].map((p, idx) => (
+          <circle key={`jt-${idx}`} cx={p.x} cy={p.y} r={jointRadius} />
+        ))}
+        {[points.wristL, points.wristR].map((p, idx) => (
+          <circle key={`hd-${idx}`} cx={p.x} cy={p.y} r={handRadius} fill="none" />
+        ))}
+      </g>
+    </svg>
+  );
+}
+
 async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
   if (!sourceUrl) throw new Error("Missing video source.");
   if (typeof document === "undefined") throw new Error("Video editor requires a browser environment.");
@@ -1542,6 +3078,7 @@ async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
   const fps = Math.min(60, Math.max(12, Number(opts.fps) || 30));
   const bitrateKbps = Math.min(12000, Math.max(700, Number(opts.bitrateKbps) || 3500));
   const overlayStrokes = normalizeOverlayStrokes(opts.overlayStrokes);
+  const overlayStickFigure = normalizeStickFigureGuide(opts.overlayStickFigure, createDefaultStickFigureGuide());
 
   const srcW = Math.max(2, Number(video.videoWidth) || 1280);
   const srcH = Math.max(2, Number(video.videoHeight) || 720);
@@ -1636,6 +3173,7 @@ async function trimAndCompressVideoFromUrl(sourceUrl, opts = {}) {
     try {
       ctx.drawImage(video, 0, 0, outW, outH);
       drawOverlayStrokes(ctx, overlayStrokes, outW, outH);
+      drawStickFigureGuide(ctx, overlayStickFigure, outW, outH);
     } catch {
       // ignore draw glitches and continue
     }
@@ -1910,6 +3448,7 @@ function TabButton({ active, icon: Icon, label, onClick, lightMode = false, tabK
     coach: { light: "bg-rose-100 text-rose-900 ring-rose-300", dark: "bg-rose-500/20 text-rose-100 ring-rose-400/40" },
     skateday: { light: "bg-teal-100 text-teal-900 ring-teal-300", dark: "bg-teal-500/20 text-teal-100 ring-teal-400/40" },
     contest: { light: "bg-orange-100 text-orange-900 ring-orange-300", dark: "bg-orange-500/20 text-orange-100 ring-orange-400/40" },
+    academy: { light: "bg-lime-100 text-lime-900 ring-lime-300", dark: "bg-lime-500/20 text-lime-100 ring-lime-400/40" },
     team: { light: "bg-blue-100 text-blue-900 ring-blue-300", dark: "bg-blue-500/20 text-blue-100 ring-blue-400/40" },
     chat: { light: "bg-violet-100 text-violet-900 ring-violet-300", dark: "bg-violet-500/20 text-violet-100 ring-violet-400/40" },
     settings: { light: "bg-slate-200 text-slate-900 ring-slate-400", dark: "bg-slate-300/20 text-slate-100 ring-slate-200/35" },
@@ -2045,6 +3584,8 @@ export default function SkateTrainingPlanApp() {
   const reminders = store.reminders || { enabled: false, time: "17:00" };
   const auth = store.auth || { loggedInMemberId: null };
   const ui = store.ui || { view: "log", activeMemberId: members[0]?.id, activeSkaterId: skaters[0]?.id };
+  const activeMemberForGate = members.find((m) => m.id === ui.activeMemberId) || members[0];
+  const activeMemberRoleForGate = String(activeMemberForGate?.role || "");
   const activeSkaterId = String(ui.activeSkaterId || skaters[0]?.id || "");
   const primarySportKey = normalizeSportKey(primarySportBySkaterId?.[activeSkaterId] || trainingSportBySkaterId?.[activeSkaterId] || "skate", "skate");
   const activeSportPackage = normalizeSportPackage(sportPackageBySkaterId?.[activeSkaterId], SPORT_PACKAGE_SINGLE);
@@ -2063,21 +3604,72 @@ export default function SkateTrainingPlanApp() {
   const contestBySkaterId = store.contestBySkaterId || {};
   const coachCornerBySkaterId = store.coachCornerBySkaterId || {};
   const skateDaysBySkaterId = store.skateDaysBySkaterId || {};
+  const trickProfileBySkaterId = store.trickProfileBySkaterId || {};
+  const academyBySkaterId = store.academyBySkaterId || {};
   const parkProfiles = store.parkProfiles || DEFAULT_PARK_PROFILES;
   const parkPrefsBySkaterId = store.parkPrefsBySkaterId || {};
-  const appPrefs = store.appPrefs || { theme: "dark" };
+  const appPrefs = store.appPrefs || { theme: "dark", language: "auto", backgroundByMemberId: {}, copyOverridesByLanguage: {} };
+  const uiLanguagePref = normalizeUiLanguagePref(appPrefs.language, "auto");
+  const uiLanguage = resolveUiLanguage(uiLanguagePref);
+  const uiLocale = localeFromUiLanguage(uiLanguage);
+  const copyOverridesByLanguage = toObj(appPrefs.copyOverridesByLanguage, {});
+  const activeCopyOverrides = toObj(copyOverridesByLanguage[uiLanguage], {});
+  const tx = (key, fallback = "") => String(activeCopyOverrides[key] || copyText(uiLanguage, key, fallback));
+  const programProfileRaw = { ...createDefaultProgramProfile(), ...toObj(store.programProfile, {}) };
+  const programProfile = {
+    ...programProfileRaw,
+    enabled: !!programProfileRaw.enabled,
+    programType: normalizeProgramType(programProfileRaw.programType, createDefaultProgramProfile().programType),
+    level: normalizeProgramLevel(programProfileRaw.level, createDefaultProgramProfile().level),
+    schoolName: String(programProfileRaw.schoolName || "").trim(),
+    teamName: String(programProfileRaw.teamName || "").trim(),
+    cityState: String(programProfileRaw.cityState || "").trim(),
+    season: String(programProfileRaw.season || "").trim(),
+    notes: String(programProfileRaw.notes || ""),
+  };
+  const programLevelLabelMap = {
+    youth: "Youth",
+    "middle-school": "Middle School",
+    "high-school": "High School",
+    college: "College",
+    adult: "Adult",
+  };
+  const programTypeLabelMap = {
+    family: "Family",
+    "school-team": "School Team",
+    "club-team": "Club Team",
+  };
+  const programLevelLabel = programLevelLabelMap[programProfile.level] || "Youth";
+  const programTypeLabel = programTypeLabelMap[programProfile.programType] || "Family";
+  const isHighSchoolProgram = !!programProfile.enabled && programProfile.level === "high-school";
+  const programHeaderLabel = programProfile.teamName || programProfile.schoolName || (isHighSchoolProgram ? "High School Team" : programTypeLabel);
   const cloudSync = { ...DEFAULT_CLOUD_SYNC, ...toObj(store.cloudSync, {}) };
   const betaCheck = { ...createDefaultBetaCheck(), ...toObj(store.betaCheck, {}) };
   const proFeedback = { ...createDefaultProFeedback(), ...toObj(store.proFeedback, {}) };
   const proFeedbackRequestsBySkaterId = toObj(proFeedback.requestsBySkaterId, {});
   const proFeedbackEnabled = !!proFeedback.enabled;
-  const proFeedbackAvailable = proFeedbackEnabled && activeSportKey === "skate";
+  const proFeedbackAvailable = proFeedbackEnabled && (activeSportKey === "skate" || activeMemberRoleForGate === "proskater");
   const proFeedbackPriceUsd = Math.max(0, Number(proFeedback.priceUsd) || 0);
+  const proFeedbackOwnerShareUsd = Math.max(0, Math.min(proFeedbackPriceUsd, Number(proFeedback.ownerShareUsd) || 0));
+  const proFeedbackProShareUsd = Math.max(0, Number((proFeedbackPriceUsd - proFeedbackOwnerShareUsd).toFixed(2)));
+  const proFeedbackWeeklyPayoutDay = normalizeWeekday(proFeedback.weeklyPayoutDay, "Friday");
   const activeProFeedbackRequests = toArray(proFeedbackRequestsBySkaterId[activeSkaterId]).slice().sort((a, b) => {
     const aMs = Date.parse(String(a?.createdAt || "")) || 0;
     const bMs = Date.parse(String(b?.createdAt || "")) || 0;
     return bMs - aMs;
   });
+  const allProFeedbackRequests = Object.entries(proFeedbackRequestsBySkaterId)
+    .flatMap(([skaterId, list]) =>
+      toArray(list).map((item) => ({
+        ...item,
+        skaterId: String(item?.skaterId || skaterId || ""),
+      }))
+    )
+    .sort((a, b) => {
+      const aMs = Date.parse(String(a?.createdAt || "")) || 0;
+      const bMs = Date.parse(String(b?.createdAt || "")) || 0;
+      return bMs - aMs;
+    });
   const betaCheckedById = toObj(betaCheck.checkedById, {});
   const betaNotesById = toObj(betaCheck.notesById, {});
   const [lastDraftSavedAt, setLastDraftSavedAt] = useState(() => new Date());
@@ -2172,26 +3764,46 @@ export default function SkateTrainingPlanApp() {
   const activeSkater = useMemo(() => skaters.find((s) => s.id === ui.activeSkaterId) || skaters[0], [skaters, ui.activeSkaterId]);
 
   const isSkaterMember = activeMember?.role === "skater";
+  const isProSkaterMember = activeMember?.role === "proskater";
+  const isMediaMember = activeMember?.role === "media";
   const canEditPlans = activeMember?.role === "owner" || activeMember?.role === "coach" || activeMember?.role === "skater";
   const canManageSportPackage = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const canComment = !!activeMember;
-  const canEditStudentMedia = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
+  const canEditStudentMedia = ["owner", "coach", "dad", "media"].includes(String(activeMember?.role || ""));
+  const canManageCoachCorner = ["owner", "coach", "dad", "proskater", "media"].includes(String(activeMember?.role || ""));
+  const canManageAcademy =
+    ["owner", "proskater", "coach", "media"].includes(String(activeMember?.role || "")) || /kiko/i.test(String(activeMember?.name || ""));
   const canManageTeam = activeMember?.role === "owner";
-  const canManageProFeedback = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
+  const canManageProFeedback = ["owner", "coach", "dad", "proskater"].includes(String(activeMember?.role || ""));
+  const canManageProBilling = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
+  const canManageProPayout = activeMember?.role === "owner";
+  const canDeleteProFeedbackRequest = ["owner", "coach", "dad"].includes(String(activeMember?.role || ""));
   const roleDisplayLabel = (role) => {
     const normalizedRole = String(role || "").trim().toLowerCase();
     if (normalizedRole === "skater") return participantLabel;
-    if (normalizedRole === "owner") return "Owner";
-    if (normalizedRole === "coach") return "Coach";
-    if (normalizedRole === "dad") return "Dad";
+    if (normalizedRole === "proskater") return tx("role.proskater", "Pro Skater");
+    if (normalizedRole === "owner") return tx("role.owner", "Owner");
+    if (normalizedRole === "coach") return tx("role.coach", "Coach");
+    if (normalizedRole === "dad") return tx("role.dad", "Dad");
+    if (normalizedRole === "media") return tx("role.media", "Media");
     return normalizedRole || "Member";
   };
   const roleAllowedViews = useMemo(
-    () =>
-      isSkaterMember
-        ? new Set(["log", "cards", "calendar", "dash", "plans", "skateday", "contest", "chat", "profeedback"])
-        : VALID_VIEWS,
-    [isSkaterMember]
+    () => {
+      if (isSkaterMember) return new Set(["log", "cards", "calendar", "dash", "plans", "coach", "skateday", "contest", "academy", "chat", "profeedback"]);
+      if (isProSkaterMember) return new Set(["log", "cards", "calendar", "dash", "plans", "skateday", "contest", "academy", "chat", "profeedback", "settings"]);
+      if (isMediaMember) return new Set(["log", "cards", "calendar", "dash", "coach", "skateday", "contest", "academy", "chat"]);
+      return VALID_VIEWS;
+    },
+    [isSkaterMember, isProSkaterMember, isMediaMember]
+  );
+  const visibleProFeedbackRequests = useMemo(
+    () => (isProSkaterMember ? allProFeedbackRequests : activeProFeedbackRequests),
+    [isProSkaterMember, allProFeedbackRequests, activeProFeedbackRequests]
+  );
+  const proFeedbackDefaultPayment = useMemo(
+    () => buildProFeedbackPaymentDetails(proFeedback, proFeedbackPriceUsd, "Pro Feedback Review"),
+    [proFeedback, proFeedbackPriceUsd]
   );
   const [calendarMonthKey, setCalendarMonthKey] = useState(() => monthKeyFromDate(new Date()));
   const [calendarNowMs, setCalendarNowMs] = useState(() => Date.now());
@@ -2494,6 +4106,7 @@ export default function SkateTrainingPlanApp() {
           url: URL.createObjectURL(f),
           dataUrl,
           comment: "",
+          trickAssist: f.type?.startsWith("video/") ? normalizeTrickAssist({}, f.name) : undefined,
         };
       })
     );
@@ -2520,6 +4133,36 @@ export default function SkateTrainingPlanApp() {
       return prev.filter((x) => x.id !== id);
     });
   };
+  const updateDraftMediaTrickAssist = (mediaId, updater) => {
+    setDraftMedia((prev) =>
+      prev.map((item) => {
+        if (item.id !== mediaId) return item;
+        const base = normalizeTrickAssist(item?.trickAssist, item?.name || "");
+        const nextRaw = typeof updater === "function" ? updater(base, item) : updater;
+        return {
+          ...item,
+          trickAssist: normalizeTrickAssist(nextRaw, item?.name || ""),
+        };
+      })
+    );
+  };
+  const setDraftMediaTrickFromSuggestion = (mediaId, suggestion) => {
+    updateDraftMediaTrickAssist(mediaId, (base) => ({
+      ...base,
+      selectedTrickId: String(suggestion?.id || ""),
+      selectedTrickName: String(suggestion?.name || ""),
+    }));
+  };
+  const setDraftMediaTrickName = (mediaId, nextName) => {
+    const raw = String(nextName || "");
+    const trimmed = raw.trim();
+    const known = findTrickByName(trimmed);
+    updateDraftMediaTrickAssist(mediaId, (base) => ({
+      ...base,
+      selectedTrickName: raw,
+      selectedTrickId: trimmed ? String(known?.id || trickIdFromName("assist", trimmed)) : "",
+    }));
+  };
 
   const [videoEdit, setVideoEdit] = useState({
     open: false,
@@ -2541,6 +4184,13 @@ export default function SkateTrainingPlanApp() {
   const [videoDrawColor, setVideoDrawColor] = useState("#f43f5e");
   const [videoDrawWidth, setVideoDrawWidth] = useState(4);
   const [videoDrawStrokes, setVideoDrawStrokes] = useState([]);
+  const [videoStickFigure, setVideoStickFigure] = useState(() => createDefaultStickFigureGuide());
+  const [videoStickPresetKey, setVideoStickPresetKey] = useState("bowl_vert");
+  const applyVideoStickPreset = (presetKey) => {
+    const patch = getStickFigurePresetPatch(presetKey);
+    if (!Object.keys(patch).length) return;
+    setVideoStickFigure((prev) => normalizeStickFigureGuide({ ...toObj(prev, {}), ...patch }, prev));
+  };
   const videoDrawStrokesRef = useRef([]);
   const videoDrawWrapRef = useRef(null);
   const videoDrawCanvasRef = useRef(null);
@@ -2551,6 +4201,8 @@ export default function SkateTrainingPlanApp() {
     setVideoDrawColor("#f43f5e");
     setVideoDrawWidth(4);
     setVideoDrawStrokes([]);
+    setVideoStickFigure(createDefaultStickFigureGuide());
+    setVideoStickPresetKey("bowl_vert");
     videoDrawStrokesRef.current = [];
     activeVideoDrawStrokeIdRef.current = "";
   };
@@ -2580,6 +4232,7 @@ export default function SkateTrainingPlanApp() {
     const { ctx, width, height } = layer;
     ctx.clearRect(0, 0, width, height);
     drawOverlayStrokes(ctx, normalizeOverlayStrokes(videoDrawStrokesRef.current), width, height);
+    drawStickFigureGuide(ctx, normalizeStickFigureGuide(videoStickFigure, createDefaultStickFigureGuide()), width, height);
   };
 
   const eventToDrawPoint = (event) => {
@@ -2636,6 +4289,11 @@ export default function SkateTrainingPlanApp() {
     videoDrawStrokesRef.current = videoDrawStrokes;
     if (videoEdit.open) redrawVideoDrawLayer();
   }, [videoDrawStrokes, videoEdit.open]);
+
+  useEffect(() => {
+    if (!videoEdit.open) return;
+    redrawVideoDrawLayer();
+  }, [videoStickFigure, videoEdit.open]);
 
   useEffect(() => {
     if (!videoEdit.open) return undefined;
@@ -2773,6 +4431,7 @@ export default function SkateTrainingPlanApp() {
         fps: videoEdit.fps,
         bitrateKbps: videoEdit.bitrateKbps,
         overlayStrokes: videoDrawStrokes,
+        overlayStickFigure: videoStickFigure,
       });
       const ext = String(out.mimeType || "").includes("webm") ? "webm" : "mp4";
       const baseName = String(media.name || "clip").replace(/\.[^.]+$/, "");
@@ -2794,7 +4453,7 @@ export default function SkateTrainingPlanApp() {
               ? {
                   ...s,
                   media: (s.media || []).map((item) =>
-                    item.id === media.id
+                        item.id === media.id
                       ? {
                           ...item,
                           url: nextUrl,
@@ -2802,6 +4461,7 @@ export default function SkateTrainingPlanApp() {
                           type: out.mimeType || item.type || "video/webm",
                           size: out.blob.size,
                           name: nextName,
+                          trickAssist: normalizeTrickAssist(item?.trickAssist, nextName),
                         }
                       : item
                   ),
@@ -2820,6 +4480,7 @@ export default function SkateTrainingPlanApp() {
                   type: out.mimeType || item.type || "video/webm",
                   size: out.blob.size,
                   name: nextName,
+                  trickAssist: normalizeTrickAssist(item?.trickAssist, nextName),
                 }
               : item
           )
@@ -2827,9 +4488,10 @@ export default function SkateTrainingPlanApp() {
       }
       safeRevokeObjectURL(media.url);
       closeVideoEditor();
+      const hasCoachOverlay = videoDrawStrokes.length || videoStickFigure.enabled;
       toast(
         "Video updated",
-        `${Math.max(0.25, out.durationSec).toFixed(1)}s • ${out.width}x${out.height} • ${formatBytes(out.blob.size)}${videoDrawStrokes.length ? " • Coach overlay added" : ""}`,
+        `${Math.max(0.25, out.durationSec).toFixed(1)}s • ${out.width}x${out.height} • ${formatBytes(out.blob.size)}${hasCoachOverlay ? " • Coach overlay added" : ""}`,
         "success"
       );
     } catch (err) {
@@ -2866,7 +4528,141 @@ export default function SkateTrainingPlanApp() {
     return [...all];
   }, [plans, sessionEdit.dayType]);
   const isLightMode = appPrefs.theme === "light";
+  const formatDateTime = (value) => {
+    const dt = new Date(value);
+    return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleString(uiLocale);
+  };
+  const formatClockTime = (value) => {
+    const dt = new Date(value);
+    return Number.isNaN(dt.getTime()) ? "" : dt.toLocaleTimeString(uiLocale, { hour: "numeric", minute: "2-digit" });
+  };
   const toggleTheme = () => setSlice({ appPrefs: { ...appPrefs, theme: isLightMode ? "dark" : "light" } });
+  const setLanguagePreference = (nextLanguage) =>
+    setSlice({ appPrefs: { ...appPrefs, language: normalizeUiLanguagePref(nextLanguage, appPrefs.language || "auto") } });
+  const selectedLanguageOverrideMap = useMemo(() => toObj(copyOverridesByLanguage[uiLanguage], {}), [copyOverridesByLanguage, uiLanguage]);
+  const [languageOverrideDraft, setLanguageOverrideDraft] = useState(() => JSON.stringify(selectedLanguageOverrideMap, null, 2));
+  useEffect(() => {
+    setLanguageOverrideDraft(JSON.stringify(selectedLanguageOverrideMap, null, 2));
+  }, [uiLanguage, selectedLanguageOverrideMap]);
+  const saveLanguageOverrideDraft = () => {
+    try {
+      const parsed = JSON.parse(String(languageOverrideDraft || "{}"));
+      if (!isPlainObject(parsed)) throw new Error("Translation JSON must be an object.");
+      const cleaned = Object.fromEntries(
+        Object.entries(parsed)
+          .map(([k, v]) => [String(k || ""), String(v || "")])
+          .filter(([k, v]) => k && v)
+      );
+      setSlice({
+        appPrefs: {
+          ...appPrefs,
+          copyOverridesByLanguage: {
+            ...copyOverridesByLanguage,
+            [uiLanguage]: cleaned,
+          },
+        },
+      });
+      toast("Language overrides saved", `${Object.keys(cleaned).length} key(s) updated for ${uiLanguage}.`, "success");
+    } catch (err) {
+      toast("Invalid translation JSON", err?.message || "JSON parse failed.", "warn");
+    }
+  };
+  const clearLanguageOverrideDraft = () => {
+    const next = { ...copyOverridesByLanguage };
+    delete next[uiLanguage];
+    setSlice({ appPrefs: { ...appPrefs, copyOverridesByLanguage: next } });
+    setLanguageOverrideDraft("{}");
+    toast("Language overrides cleared", `Custom copy removed for ${uiLanguage}.`, "warn");
+  };
+  const activeMemberIdForPrefs = String(activeMember?.id || ui.activeMemberId || "default");
+  const backgroundByMemberId = toObj(appPrefs.backgroundByMemberId, {});
+  const activeBackgroundPref = normalizeBackgroundPref(backgroundByMemberId[activeMemberIdForPrefs]);
+  const saveActiveBackgroundPref = (patch = {}) => {
+    const merged = normalizeBackgroundPref({ ...activeBackgroundPref, ...toObj(patch, {}) });
+    setSlice({
+      appPrefs: {
+        ...appPrefs,
+        backgroundByMemberId: {
+          ...backgroundByMemberId,
+          [activeMemberIdForPrefs]: merged,
+        },
+      },
+    });
+  };
+  const applyBackgroundPreset = (presetKey) => saveActiveBackgroundPref({ mode: "preset", presetKey, imageUrl: "" });
+  const clearBackgroundPersonalization = () => saveActiveBackgroundPref({ mode: "default", imageUrl: "" });
+  const setBackgroundImageLayout = (layout) => {
+    const normalized = String(layout || "").toLowerCase() === "tile" ? "tile" : "fit";
+    if (!activeBackgroundPref.imageUrl) return;
+    saveActiveBackgroundPref({ mode: "image", imageLayout: normalized });
+  };
+  const uploadBackgroundImage = async (file) => {
+    if (!file || !String(file.type || "").startsWith("image/")) {
+      toast("Invalid image", "Choose a photo/image file.", "warn");
+      return;
+    }
+    if ((Number(file.size) || 0) > MAX_IMAGE_FILE_BYTES) {
+      toast("Image too large", "Use an image under 25MB.", "warn");
+      return;
+    }
+    try {
+      const compressed = await compressImageFile(file, { maxW: 1280, maxH: 1280, quality: 0.8, maxBytes: 550 * 1024 });
+      const imageUrl = await fileToDataUrl(compressed);
+      saveActiveBackgroundPref({
+        mode: "image",
+        imageUrl,
+        presetKey: activeBackgroundPref.presetKey || "aurora",
+        imageLayout: activeBackgroundPref.imageLayout === "tile" ? "tile" : "fit",
+      });
+      toast("Background updated", `${activeMember?.name || "User"} personalization saved (optimized).`, "success");
+    } catch {
+      toast("Background failed", "Could not process this image.", "warn");
+    }
+  };
+  const activeBackgroundPresetCss = BACKGROUND_PRESETS.find((p) => p.key === activeBackgroundPref.presetKey)?.css || BACKGROUND_PRESETS[0].css;
+  const backgroundImageLayout = activeBackgroundPref.imageLayout === "tile" ? "tile" : "fit";
+  const appShellPersonalStyle =
+    activeBackgroundPref.mode === "image" && activeBackgroundPref.imageUrl
+      ? {
+          backgroundImage:
+            backgroundImageLayout === "tile"
+              ? isLightMode
+                ? `linear-gradient(rgba(248,250,252,0.58), rgba(226,232,240,0.48)), url("${activeBackgroundPref.imageUrl}")`
+                : `linear-gradient(rgba(2,6,23,0.46), rgba(2,6,23,0.32)), url("${activeBackgroundPref.imageUrl}")`
+              : isLightMode
+              ? `linear-gradient(rgba(248,250,252,0.64), rgba(226,232,240,0.50)), url("${activeBackgroundPref.imageUrl}")`
+              : `linear-gradient(rgba(2,6,23,0.50), rgba(2,6,23,0.40)), url("${activeBackgroundPref.imageUrl}")`,
+          backgroundSize: backgroundImageLayout === "tile" ? "100% 100%, 200px 200px" : "100% 100%, cover",
+          backgroundPosition: backgroundImageLayout === "tile" ? "center, top left" : "center, center",
+          backgroundRepeat: backgroundImageLayout === "tile" ? "no-repeat, repeat" : "no-repeat, no-repeat",
+          backgroundAttachment: backgroundImageLayout === "fit" ? "scroll, fixed" : "scroll, scroll",
+          backgroundColor: isLightMode ? "#e2e8f0" : "#020617",
+        }
+      : activeBackgroundPref.mode === "preset"
+      ? {
+          backgroundImage: activeBackgroundPresetCss,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }
+      : undefined;
+  const updateProgramProfile = (patch = {}) =>
+    setSlice({
+      programProfile: {
+        ...programProfile,
+        ...patch,
+        enabled: Object.prototype.hasOwnProperty.call(patch, "enabled") ? !!patch.enabled : !!programProfile.enabled,
+        programType: normalizeProgramType(patch.programType ?? programProfile.programType, programProfile.programType),
+        level: normalizeProgramLevel(patch.level ?? programProfile.level, programProfile.level),
+        schoolName: String(patch.schoolName ?? programProfile.schoolName ?? "").trim(),
+        teamName: String(patch.teamName ?? programProfile.teamName ?? "").trim(),
+        cityState: String(patch.cityState ?? programProfile.cityState ?? "").trim(),
+        season: String(patch.season ?? programProfile.season ?? "").trim(),
+        notes: String(patch.notes ?? programProfile.notes ?? ""),
+      },
+    });
+  const appTagline = tx("app.tagline", APP_TAGLINE);
+  const openMeteoLang = openMeteoLanguageCode(uiLanguage);
   const selectedParkId = parkPrefsBySkaterId[ui.activeSkaterId] || parkProfiles[0]?.id || "";
   const selectedParkProfile = useMemo(
     () => parkProfiles.find((p) => p.id === selectedParkId) || null,
@@ -2899,7 +4695,9 @@ export default function SkateTrainingPlanApp() {
   };
 
   const fetchOpenMeteoParkResults = async (query, count = 8) => {
-    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=${Math.max(1, Math.min(30, Number(count) || 8))}&language=en&format=json`;
+    const url = `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(query)}&count=${Math.max(1, Math.min(30, Number(count) || 8))}&language=${encodeURIComponent(
+      openMeteoLang
+    )}&format=json`;
     const res = await fetch(url);
     if (!res.ok) throw new Error("Location search unavailable.");
     const data = await res.json();
@@ -3459,6 +5257,7 @@ export default function SkateTrainingPlanApp() {
             date: s.date,
             dayType: s.dayType,
             park: s.park,
+            trickLabel: String(m?.trickAssist?.selectedTrickName || "").trim(),
           }))
       )
       .slice(0, 12);
@@ -3468,6 +5267,30 @@ export default function SkateTrainingPlanApp() {
   const [comparePlaybackRate, setComparePlaybackRate] = useState(1);
   const compareCoachVideoRef = useRef(null);
   const compareStudentVideoRef = useRef(null);
+  const [compareStickFigureBySide, setCompareStickFigureBySide] = useState(() => ({
+    coach: createDefaultStickFigureGuide({ color: "#22d3ee", opacity: 0.84 }),
+    student: createDefaultStickFigureGuide({ color: "#f59e0b", opacity: 0.84 }),
+  }));
+  const [compareStickPresetKeyBySide, setCompareStickPresetKeyBySide] = useState({ coach: "bowl_vert", student: "bowl_vert" });
+  const applyCompareStickPreset = (side, presetKey) => {
+    const patch = getStickFigurePresetPatch(presetKey);
+    if (!Object.keys(patch).length) return;
+    updateCompareStickFigure(side, patch);
+  };
+  const updateCompareStickFigure = (side, patch = {}) => {
+    const key = side === "student" ? "student" : "coach";
+    setCompareStickFigureBySide((prev) => ({
+      ...prev,
+      [key]: normalizeStickFigureGuide(
+        {
+          ...createDefaultStickFigureGuide(key === "student" ? { color: "#f59e0b" } : { color: "#22d3ee" }),
+          ...toObj(prev[key], {}),
+          ...toObj(patch, {}),
+        },
+        key === "student" ? { color: "#f59e0b" } : { color: "#22d3ee" }
+      ),
+    }));
+  };
 
   useEffect(() => {
     if (!coachDemoVideoClips.length) {
@@ -3595,6 +5418,7 @@ export default function SkateTrainingPlanApp() {
           size: f.size,
           url: URL.createObjectURL(f),
           dataUrl,
+          trickAssist: f.type?.startsWith("video/") ? normalizeTrickAssist({}, f.name) : undefined,
         };
       })
     );
@@ -3638,8 +5462,314 @@ export default function SkateTrainingPlanApp() {
     toast("Coach demo removed", "Demo deleted.", "warn");
   };
 
-  const defaultContestState = { eventName: "", eventDate: todayISO(), round: "Qualifiers", runs: [] };
-  const contestState = contestBySkaterId[ui.activeSkaterId] || defaultContestState;
+  const activeTrickProfile = normalizeTrickProfile(trickProfileBySkaterId[ui.activeSkaterId]);
+  const setActiveTrickProfile = (next) =>
+    setSlice({
+      trickProfileBySkaterId: {
+        ...trickProfileBySkaterId,
+        [ui.activeSkaterId]: normalizeTrickProfile(next),
+      },
+    });
+  const [trickCategoryFilter, setTrickCategoryFilter] = useState("all");
+  const [trickSearch, setTrickSearch] = useState("");
+  const [customTrickDraft, setCustomTrickDraft] = useState({ name: "", category: "street" });
+  const trickCategoryOptions = useMemo(
+    () => [{ key: "all", label: "All Categories" }, ...SKATE_TRICK_CATALOG.map((cat) => ({ key: cat.key, label: cat.label }))],
+    []
+  );
+  const trickCatalogOptions = useMemo(() => {
+    const custom = toArray(activeTrickProfile.customTricks).map((item) => ({
+      id: item.id,
+      name: item.name,
+      category: item.category,
+      categoryLabel: SKATE_TRICK_CATALOG.find((cat) => cat.key === item.category)?.label || "Custom",
+      isCustom: true,
+    }));
+    return [...SKATE_TRICK_LIBRARY.map((x) => ({ ...x, isCustom: false })), ...custom];
+  }, [activeTrickProfile.customTricks]);
+  const filteredTrickCatalog = useMemo(() => {
+    const q = String(trickSearch || "").trim().toLowerCase();
+    return trickCatalogOptions
+      .filter((trick) => (trickCategoryFilter === "all" ? true : trick.category === trickCategoryFilter))
+      .filter((trick) => (!q ? true : `${trick.name} ${trick.categoryLabel}`.toLowerCase().includes(q)))
+      .slice(0, 500);
+  }, [trickCatalogOptions, trickCategoryFilter, trickSearch]);
+  const planTrickDropdownOptions = useMemo(() => {
+    const learned = new Set(toArray(activeTrickProfile.learnedIds));
+    const wishlist = new Set(toArray(activeTrickProfile.wishlistIds));
+    const seenByName = new Set();
+    return trickCatalogOptions
+      .filter((trick) => {
+        const key = String(trick?.name || "").trim().toLowerCase();
+        if (!key || seenByName.has(key)) return false;
+        seenByName.add(key);
+        return true;
+      })
+      .sort((a, b) => {
+        const scoreA = (learned.has(a.id) ? 2 : 0) + (wishlist.has(a.id) ? 1 : 0);
+        const scoreB = (learned.has(b.id) ? 2 : 0) + (wishlist.has(b.id) ? 1 : 0);
+        if (scoreA !== scoreB) return scoreB - scoreA;
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      })
+      .slice(0, 800);
+  }, [trickCatalogOptions, activeTrickProfile.learnedIds, activeTrickProfile.wishlistIds]);
+  const learnedTrickCount = toArray(activeTrickProfile.learnedIds).length;
+  const wishlistTrickCount = toArray(activeTrickProfile.wishlistIds).length;
+  const toggleTrickLearned = (trickId, nextChecked) => {
+    const nextSet = new Set(toArray(activeTrickProfile.learnedIds));
+    if (nextChecked) nextSet.add(trickId);
+    else nextSet.delete(trickId);
+    setActiveTrickProfile({ ...activeTrickProfile, learnedIds: [...nextSet] });
+  };
+  const toggleTrickWishlist = (trickId, nextChecked) => {
+    const nextSet = new Set(toArray(activeTrickProfile.wishlistIds));
+    if (nextChecked) nextSet.add(trickId);
+    else nextSet.delete(trickId);
+    setActiveTrickProfile({ ...activeTrickProfile, wishlistIds: [...nextSet] });
+  };
+  const addCustomCatalogTrick = () => {
+    const name = String(customTrickDraft.name || "").trim();
+    const category = String(customTrickDraft.category || "street")
+      .trim()
+      .toLowerCase();
+    if (!name) {
+      toast("Custom trick missing", "Type a trick name first.", "warn");
+      return;
+    }
+    const cat = SKATE_TRICK_CATALOG.some((x) => x.key === category) ? category : "street";
+    const id = trickIdFromName(cat, `custom-${name}`);
+    const exists = trickCatalogOptions.some((t) => t.id === id || String(t.name || "").toLowerCase() === name.toLowerCase());
+    if (exists) {
+      toast("Trick already exists", "This trick is already in your catalog.", "warn");
+      return;
+    }
+    setActiveTrickProfile({
+      ...activeTrickProfile,
+      customTricks: [...toArray(activeTrickProfile.customTricks), { id, name, category: cat }],
+      learnedIds: [...new Set([...(activeTrickProfile.learnedIds || []), id])],
+    });
+    setCustomTrickDraft({ name: "", category: cat });
+    toast("Custom trick added", `${name} added to catalog.`, "success");
+  };
+  const removeCustomCatalogTrick = (trickId) => {
+    const custom = toArray(activeTrickProfile.customTricks);
+    const found = custom.find((x) => x.id === trickId);
+    if (!found) return;
+    setActiveTrickProfile({
+      ...activeTrickProfile,
+      customTricks: custom.filter((x) => x.id !== trickId),
+      learnedIds: toArray(activeTrickProfile.learnedIds).filter((id) => id !== trickId),
+      wishlistIds: toArray(activeTrickProfile.wishlistIds).filter((id) => id !== trickId),
+    });
+    toast("Custom trick removed", `${found.name} removed.`, "warn");
+  };
+
+  const academyState = normalizeAcademyState(academyBySkaterId[ui.activeSkaterId]);
+  const setAcademyState = (next) =>
+    setSlice({
+      academyBySkaterId: {
+        ...academyBySkaterId,
+        [ui.activeSkaterId]: normalizeAcademyState(next),
+      },
+    });
+  const patchAcademyState = (patch) => setAcademyState({ ...academyState, ...toObj(patch, {}) });
+  const academyHasAccess =
+    canManageAcademy || !academyState.membersOnly || toArray(academyState.memberIds).includes(String(activeMember?.id || ""));
+  const academyBranding = toObj(academyState.branding, {});
+  const academyFees = toObj(academyState.fees, {});
+  const academyAccentColor = normalizeHexColor(academyBranding.accentColor, "#84cc16");
+  const academyCardColor = normalizeHexColor(academyBranding.cardColor, "#0f172a");
+  const academyTextColor = normalizeHexColor(academyBranding.textColor, "#ffffff");
+  const academyFeeFormatter = useMemo(
+    () =>
+      new Intl.NumberFormat(uiLocale || undefined, {
+        style: "currency",
+        currency: normalizeCurrencyCode(academyFees.currency, "USD"),
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 2,
+      }),
+    [uiLocale, academyFees.currency]
+  );
+  const formatAcademyPrice = (value) => academyFeeFormatter.format(Math.max(0, Number(value) || 0));
+  const patchAcademyBranding = (patch) =>
+    patchAcademyState({
+      branding: {
+        ...academyBranding,
+        ...toObj(patch, {}),
+      },
+    });
+  const patchAcademyFees = (patch) =>
+    patchAcademyState({
+      fees: {
+        ...academyFees,
+        ...toObj(patch, {}),
+      },
+    });
+  const setAcademyBrandAsset = async (targetKey, fileList) => {
+    if (!canManageAcademy) return;
+    const { valid: files, stats } = guardUploadFiles(fileList, {
+      maxCount: 1,
+      maxBytes: MAX_IMAGE_FILE_BYTES,
+      allowedPrefixes: ["image/"],
+    });
+    const first = files[0];
+    if (!first) {
+      toast("No image selected", "Use a PNG/JPG/WebP image for academy branding.", "warn");
+      return;
+    }
+    try {
+      const compressed = await compressImageFile(first, { maxW: 1800, maxH: 1800, quality: 0.86, maxBytes: 1200 * 1024 });
+      const dataUrl = await fileToDataUrl(compressed);
+      patchAcademyBranding({ [targetKey]: dataUrl });
+      toast("Brand image updated", `${targetKey === "logoUrl" ? "Logo" : "Banner"} saved.`, "success");
+    } catch (err) {
+      console.error("Academy branding upload failed:", err);
+      toast("Upload failed", "Could not process that image.", "warn");
+    }
+    if (stats.trimmed || stats.tooLarge || stats.wrongType) {
+      toast(
+        "Some files skipped",
+        `${stats.trimmed ? `${stats.trimmed} over limit, ` : ""}${stats.tooLarge ? `${stats.tooLarge} too large, ` : ""}${stats.wrongType ? `${stats.wrongType} wrong type` : ""}`.replace(/, $/, ""),
+        "warn"
+      );
+    }
+  };
+  const clearAcademyBrandAsset = (targetKey) => {
+    if (!canManageAcademy) return;
+    patchAcademyBranding({ [targetKey]: "" });
+    toast("Brand image removed", `${targetKey === "logoUrl" ? "Logo" : "Banner"} cleared.`, "warn");
+  };
+  const openAcademyPaymentLink = () => {
+    const url = normalizeExternalUrl(academyFees.paymentUrl || "");
+    if (!isOpenableExternalUrl(url)) {
+      toast("Payment link missing", "Add a valid payment URL first.", "warn");
+      return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
+  };
+  const [academyDraft, setAcademyDraft] = useState({ title: "", summary: "", level: "All Levels" });
+  const addAcademyCourseFromFiles = async (fileList) => {
+    if (!canManageAcademy) return;
+    const title = String(academyDraft.title || "").trim();
+    if (!title) {
+      toast("Course title needed", "Enter a lesson title first.", "warn");
+      return;
+    }
+    const { valid: files, stats } = guardUploadFiles(fileList, {
+      maxCount: MAX_UPLOAD_COUNT,
+      maxBytes: MAX_MEDIA_FILE_BYTES,
+      allowedPrefixes: ["image/", "video/"],
+    });
+    if (!files.length) {
+      toast("No lesson media added", "Files were invalid, too large, or unsupported.", "warn");
+      return;
+    }
+    const processed = await Promise.all(
+      files.map(async (f) => {
+        if (f.type?.startsWith("image/")) {
+          try {
+            return await compressImageFile(f, { maxW: 1600, maxH: 1600, quality: 0.82, maxBytes: MAX_EMBEDDED_MEDIA_BYTES });
+          } catch {
+            return f;
+          }
+        }
+        return f;
+      })
+    );
+    const media = await Promise.all(
+      processed.map(async (f) => {
+        let dataUrl = "";
+        if ((Number(f.size) || 0) <= MAX_EMBEDDED_MEDIA_BYTES) {
+          try {
+            dataUrl = await fileToDataUrl(f);
+          } catch {
+            dataUrl = "";
+          }
+        }
+        return {
+          id: `acm-${uid()}`,
+          type: f.type,
+          name: f.name,
+          size: f.size,
+          url: URL.createObjectURL(f),
+          dataUrl,
+          trickAssist: f.type?.startsWith("video/") ? normalizeTrickAssist({}, f.name) : undefined,
+        };
+      })
+    );
+    const nextCourse = {
+      id: `ac-${uid()}`,
+      title,
+      summary: String(academyDraft.summary || "").trim(),
+      level: String(academyDraft.level || "All Levels"),
+      media,
+      createdBy: activeMember?.name || "",
+      createdAt: new Date().toISOString(),
+    };
+    patchAcademyState({ courses: [nextCourse, ...toArray(academyState.courses)].slice(0, 300) });
+    setAcademyDraft({ title: "", summary: "", level: "All Levels" });
+    toast("Academy lesson added", `${media.length} media item(s) uploaded.`, "success");
+    if (stats.trimmed || stats.tooLarge || stats.wrongType) {
+      toast(
+        "Some files skipped",
+        `${stats.trimmed ? `${stats.trimmed} over limit, ` : ""}${stats.tooLarge ? `${stats.tooLarge} too large, ` : ""}${stats.wrongType ? `${stats.wrongType} wrong type` : ""}`.replace(/, $/, ""),
+        "warn"
+      );
+    }
+  };
+  const removeAcademyCourse = (courseId) => {
+    if (!canManageAcademy) return;
+    const found = toArray(academyState.courses).find((x) => x.id === courseId);
+    if (!found) return;
+    for (const m of found.media || []) if (m?.url) safeRevokeObjectURL(m.url);
+    patchAcademyState({ courses: toArray(academyState.courses).filter((x) => x.id !== courseId) });
+    toast("Lesson removed", "Academy lesson deleted.", "warn");
+  };
+  const removeAcademyMedia = (courseId, mediaId) => {
+    if (!canManageAcademy) return;
+    const courses = toArray(academyState.courses);
+    const nextCourses = courses.map((course) =>
+      course.id === courseId
+        ? {
+            ...course,
+            media: toArray(course.media).filter((m) => {
+              if (m.id === mediaId && m?.url) safeRevokeObjectURL(m.url);
+              return m.id !== mediaId;
+            }),
+          }
+        : course
+    );
+    patchAcademyState({ courses: nextCourses });
+  };
+  const toggleAcademyMember = (memberId, checked) => {
+    if (!canManageAcademy) return;
+    const next = new Set(toArray(academyState.memberIds).map((id) => String(id || "")));
+    if (checked) next.add(String(memberId || ""));
+    else next.delete(String(memberId || ""));
+    patchAcademyState({ memberIds: [...next] });
+  };
+
+  const defaultContestState = {
+    eventName: "",
+    eventDate: todayISO(),
+    eventPark: "",
+    eventDivision: "",
+    round: "Qualifiers",
+    virtualEnabled: false,
+    liveNow: false,
+    liveMembersOnly: true,
+    liveTitle: "",
+    liveStreamUrl: "",
+    nonProfitUrl: "",
+    firstClassMembersUrl: "",
+    runs: [],
+  };
+  const contestState = {
+    ...defaultContestState,
+    ...toObj(contestBySkaterId[ui.activeSkaterId], {}),
+    runs: toArray(contestBySkaterId[ui.activeSkaterId]?.runs),
+  };
+  const contestLiveHasAccess = canManageAcademy || !contestState.liveMembersOnly || academyHasAccess;
   const setContestState = (next) =>
     setSlice({
       contestBySkaterId: {
@@ -3649,6 +5779,18 @@ export default function SkateTrainingPlanApp() {
     });
 
   const patchContestState = (patch) => setContestState({ ...contestState, ...patch });
+  const openContestExternalUrl = (value, label, options = {}) => {
+    const normalized = normalizeExternalUrl(value || "");
+    if (!isOpenableExternalUrl(normalized)) {
+      toast("Invalid link", `Add a valid https:// URL for ${label}.`, "warn");
+      return;
+    }
+    if (options.requireMemberAccess && !contestLiveHasAccess) {
+      toast("Members-only access", "This link is members-only for First Class Skate members.", "warn");
+      return;
+    }
+    window.open(normalized, "_blank", "noopener,noreferrer");
+  };
 
   const addContestRun = () => {
     const nextRun = {
@@ -3664,6 +5806,8 @@ export default function SkateTrainingPlanApp() {
       notes: "",
       tricks: [],
       media: [],
+      linePlan: [],
+      lineDraftSourceKey: "",
       createdAt: new Date().toISOString(),
     };
     patchContestState({ runs: [...(contestState.runs || []), nextRun] });
@@ -3672,7 +5816,9 @@ export default function SkateTrainingPlanApp() {
 
   const updateContestRun = (runId, patch) => {
     patchContestState({
-      runs: (contestState.runs || []).map((r) => (r.id === runId ? { ...r, ...patch } : r)),
+      runs: (contestState.runs || []).map((r) =>
+        r.id === runId ? { ...r, ...toObj(patch, {}), linePlan: toArray(patch?.linePlan ?? r.linePlan) } : r
+      ),
     });
   };
 
@@ -3788,6 +5934,7 @@ export default function SkateTrainingPlanApp() {
           size: f.size,
           url: URL.createObjectURL(f),
           dataUrl,
+          trickAssist: f.type?.startsWith("video/") ? normalizeTrickAssist({}, f.name) : undefined,
         };
       })
     );
@@ -3808,6 +5955,114 @@ export default function SkateTrainingPlanApp() {
     const found = (run.media || []).find((m) => m.id === mediaId);
     if (found?.url) safeRevokeObjectURL(found.url);
     updateContestRun(runId, { media: (run.media || []).filter((m) => m.id !== mediaId) });
+  };
+
+  const contestRunClipOptions = (run) => {
+    const runClips = toArray(run?.media)
+      .filter((m) => String(m?.type || "").startsWith("video/"))
+      .map((m) => ({ key: `run:${m.id}`, label: `Run Upload • ${m.name || m.id}`, media: m }));
+    const sessionClips = coachStudentVideoClips.map((clip) => ({
+      key: `session:${clip.sessionId}:${clip.mediaId}`,
+      label: `Session • ${clip.date || "No date"} • ${clip.dayType || "Session"}${clip.trickLabel ? ` • ${clip.trickLabel}` : ""}`,
+      media: clip.media,
+    }));
+    const coachClips = coachDemoVideoClips.map((clip) => ({
+      key: `coach:${clip.itemId}:${clip.mediaId}`,
+      label: `Coach Demo • ${clip.title}`,
+      media: clip.media,
+    }));
+    return [...runClips, ...sessionClips, ...coachClips].slice(0, 400);
+  };
+
+  const parseContestClipSource = (sourceKey) => {
+    const raw = String(sourceKey || "");
+    if (!raw) return null;
+    const parts = raw.split(":");
+    if (parts[0] === "run" && parts[1]) return { type: "run", mediaId: parts[1] };
+    if (parts[0] === "session" && parts[1] && parts[2]) return { type: "session", sessionId: parts[1], mediaId: parts[2] };
+    if (parts[0] === "coach" && parts[1] && parts[2]) return { type: "coach", itemId: parts[1], mediaId: parts[2] };
+    return null;
+  };
+
+  const contestClipFromSource = (run, sourceKey) => {
+    const parsed = parseContestClipSource(sourceKey);
+    if (!parsed) return null;
+    if (parsed.type === "run") {
+      const media = toArray(run?.media).find((m) => m.id === parsed.mediaId);
+      if (!media) return null;
+      return { media, label: `Run Upload • ${media.name || media.id}` };
+    }
+    if (parsed.type === "session") {
+      const session = sessions.find((s) => s.id === parsed.sessionId);
+      const media = toArray(session?.media).find((m) => m.id === parsed.mediaId);
+      if (!media) return null;
+      return { media, label: `Session • ${session?.date || "No date"}` };
+    }
+    const demo = activeCoachItems.find((item) => item.id === parsed.itemId);
+    const media = toArray(demo?.media).find((m) => m.id === parsed.mediaId);
+    if (!media) return null;
+    return { media, label: `Coach Demo • ${demo?.title || "Demo"}` };
+  };
+
+  const lineSegmentDurationSec = (seg) => {
+    const start = Math.max(0, Number(seg?.startSec) || 0);
+    const end = Math.max(start + 0.1, Number(seg?.endSec) || start + 3);
+    return Math.max(0.1, end - start);
+  };
+
+  const linePlanTotalSec = (run) => toArray(run?.linePlan).reduce((sum, seg) => sum + lineSegmentDurationSec(seg), 0);
+
+  const addContestLineSegment = (runId, sourceKey = "") => {
+    const run = (contestState.runs || []).find((r) => r.id === runId);
+    if (!run) return;
+    const options = contestRunClipOptions(run);
+    const selected = options.find((x) => x.key === sourceKey) || options[0];
+    if (!selected) {
+      toast("No source clips", "Upload a run video or use session/coach clips first.", "warn");
+      return;
+    }
+    const nextSeg = {
+      id: `ln-${uid()}`,
+      sourceKey: selected.key,
+      title: selected.label,
+      startSec: 0,
+      endSec: 3,
+      note: "",
+    };
+    updateContestRun(runId, { linePlan: [...toArray(run.linePlan), nextSeg] });
+  };
+
+  const updateContestLineSegment = (runId, segmentId, patch = {}) => {
+    const run = (contestState.runs || []).find((r) => r.id === runId);
+    if (!run) return;
+    updateContestRun(runId, {
+      linePlan: toArray(run.linePlan).map((seg) => {
+        if (seg.id !== segmentId) return seg;
+        const next = { ...seg, ...toObj(patch, {}) };
+        const start = Math.max(0, Number(next.startSec) || 0);
+        const end = Math.max(start + 0.1, Number(next.endSec) || start + 3);
+        return { ...next, startSec: start, endSec: end };
+      }),
+    });
+  };
+
+  const removeContestLineSegment = (runId, segmentId) => {
+    const run = (contestState.runs || []).find((r) => r.id === runId);
+    if (!run) return;
+    updateContestRun(runId, { linePlan: toArray(run.linePlan).filter((seg) => seg.id !== segmentId) });
+  };
+
+  const moveContestLineSegment = (runId, segmentId, dir) => {
+    const run = (contestState.runs || []).find((r) => r.id === runId);
+    if (!run) return;
+    const list = [...toArray(run.linePlan)];
+    const idx = list.findIndex((seg) => seg.id === segmentId);
+    if (idx < 0) return;
+    const nextIdx = idx + dir;
+    if (nextIdx < 0 || nextIdx >= list.length) return;
+    const [item] = list.splice(idx, 1);
+    list.splice(nextIdx, 0, item);
+    updateContestRun(runId, { linePlan: list });
   };
 
   const freshSkateDayDraft = () => ({
@@ -3915,6 +6170,7 @@ export default function SkateTrainingPlanApp() {
           size: f.size,
           url: URL.createObjectURL(f),
           dataUrl,
+          trickAssist: f.type?.startsWith("video/") ? normalizeTrickAssist({}, f.name) : undefined,
         };
       })
     );
@@ -4493,6 +6749,14 @@ export default function SkateTrainingPlanApp() {
         ...plansBySportBySkaterId,
         [next.id]: nextPlansForSkater,
       },
+      trickProfileBySkaterId: {
+        ...trickProfileBySkaterId,
+        [next.id]: createDefaultTrickProfile(),
+      },
+      academyBySkaterId: {
+        ...academyBySkaterId,
+        [next.id]: createDefaultAcademyState(),
+      },
       plans: nextPlansForSkater[defaultSport],
       ui: { ...ui, activeSkaterId: next.id },
     });
@@ -4520,6 +6784,8 @@ export default function SkateTrainingPlanApp() {
       skaters: skaters.filter((s) => s.id !== skater.id),
       sessions: sessions.filter((s) => s.skaterId !== skater.id),
       skateDaysBySkaterId: Object.fromEntries(Object.entries(skateDaysBySkaterId).filter(([k]) => k !== skater.id)),
+      trickProfileBySkaterId: Object.fromEntries(Object.entries(trickProfileBySkaterId).filter(([k]) => k !== skater.id)),
+      academyBySkaterId: Object.fromEntries(Object.entries(academyBySkaterId).filter(([k]) => k !== skater.id)),
       trainingSportBySkaterId: Object.fromEntries(Object.entries(trainingSportBySkaterId).filter(([k]) => k !== skater.id)),
       primarySportBySkaterId: Object.fromEntries(Object.entries(primarySportBySkaterId).filter(([k]) => k !== skater.id)),
       sportPackageBySkaterId: Object.fromEntries(Object.entries(sportPackageBySkaterId).filter(([k]) => k !== skater.id)),
@@ -4815,6 +7081,11 @@ export default function SkateTrainingPlanApp() {
       ),
     });
   };
+  const applyCatalogTrickToTask = (dayName, taskId, trickNameRaw = "") => {
+    const trickName = String(trickNameRaw || "").trim();
+    if (!trickName) return;
+    updatePlanTask(dayName, taskId, { label: trickName });
+  };
 
   const setNewTaskDraftField = (dayName, field, value) => {
     setNewTaskDraftByDay((prev) => ({
@@ -4824,6 +7095,11 @@ export default function SkateTrainingPlanApp() {
         [field]: value,
       },
     }));
+  };
+  const applyCatalogTrickToNewTask = (dayName, trickNameRaw = "") => {
+    const trickName = String(trickNameRaw || "").trim();
+    if (!trickName) return;
+    setNewTaskDraftField(dayName, "label", trickName);
   };
 
   const addTaskToDay = (dayName) => {
@@ -4886,6 +7162,11 @@ export default function SkateTrainingPlanApp() {
     }
     const clipUrl = normalizeExternalUrl(proFeedbackDraft.clipUrl || "");
     const preferredResponse = String(proFeedbackDraft.preferredResponse || "").trim();
+    const paymentDetails = buildProFeedbackPaymentDetails(
+      proFeedback,
+      proFeedbackPriceUsd,
+      `${activeSkater?.name || "Skater"} - ${title || "Pro Feedback Request"}`
+    );
     const next = {
       id: `pfr-${uid()}`,
       skaterId: activeSkater.id,
@@ -4898,44 +7179,82 @@ export default function SkateTrainingPlanApp() {
       requestedBy: String(activeMember?.name || ""),
       requestedByRole: String(activeMember?.role || ""),
       chargeUsd: proFeedbackPriceUsd,
+      ownerShareUsd: proFeedbackOwnerShareUsd,
       paymentStatus: "unpaid",
+      paymentProvider: paymentDetails.provider,
+      paymentUrl: paymentDetails.url,
+      payoutStatus: "pending",
+      payoutSentAt: "",
+      payoutSentById: "",
+      payoutSentByName: "",
       status: "pending",
       proReply: "",
+      reviewedById: "",
+      reviewedByName: "",
+      reviewedAt: "",
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
     const current = toArray(proFeedbackRequestsBySkaterId[activeSkater.id]);
     setProFeedbackRequestsForSkater(activeSkater.id, [next, ...current].slice(0, 200));
     setProFeedbackDraft({ title: "", question: "", clipUrl: "", preferredResponse: "Video breakdown" });
-    toast("Pro feedback request saved", `Charge set to $${proFeedbackPriceUsd}. Mark paid when payment clears.`, "success");
+    toast(
+      "Pro feedback request saved",
+      paymentDetails.url
+        ? `Charge $${proFeedbackPriceUsd}: $${proFeedbackOwnerShareUsd} owner / $${proFeedbackProShareUsd} pro. Pay to owner first, then weekly payout.`
+        : `Charge set to $${proFeedbackPriceUsd}. Add PayPal in Settings to attach a payment link.`,
+      paymentDetails.url ? "success" : "warn"
+    );
   };
 
-  const patchProFeedbackRequest = (requestId, patch) => {
-    if (!activeSkater) return;
-    const current = toArray(proFeedbackRequestsBySkaterId[activeSkater.id]);
+  const patchProFeedbackRequest = (requestId, patch, skaterIdOverride = "") => {
+    const requestSkaterId = String(skaterIdOverride || activeSkater?.id || "");
+    if (!requestSkaterId) return;
+    const current = toArray(proFeedbackRequestsBySkaterId[requestSkaterId]);
+    const nextUpdatedAt = new Date().toISOString();
     setProFeedbackRequestsForSkater(
-      activeSkater.id,
+      requestSkaterId,
       current.map((item) => {
         if (item.id !== requestId) return item;
         const paymentRaw = String(patch?.paymentStatus ?? item?.paymentStatus ?? "").toLowerCase();
         const statusRaw = String(patch?.status ?? item?.status ?? "").toLowerCase();
-        return {
+        const payoutRaw = String(patch?.payoutStatus ?? item?.payoutStatus ?? "").toLowerCase();
+        const nextItem = {
           ...item,
           ...patch,
           paymentStatus: paymentRaw === "paid" ? "paid" : "unpaid",
+          payoutStatus: payoutRaw === "sent" ? "sent" : "pending",
           status: ["pending", "in-review", "delivered", "closed"].includes(statusRaw) ? statusRaw : "pending",
-          updatedAt: new Date().toISOString(),
+          updatedAt: nextUpdatedAt,
         };
+        if (Object.prototype.hasOwnProperty.call(toObj(patch, {}), "payoutStatus")) {
+          if (payoutRaw === "sent") {
+            nextItem.payoutSentAt = nextUpdatedAt;
+            nextItem.payoutSentById = String(activeMember?.id || item?.payoutSentById || "");
+            nextItem.payoutSentByName = String(activeMember?.name || item?.payoutSentByName || "");
+          } else {
+            nextItem.payoutSentAt = "";
+            nextItem.payoutSentById = "";
+            nextItem.payoutSentByName = "";
+          }
+        }
+        if (Object.prototype.hasOwnProperty.call(toObj(patch, {}), "proReply")) {
+          nextItem.reviewedById = String(activeMember?.id || item?.reviewedById || "");
+          nextItem.reviewedByName = String(activeMember?.name || item?.reviewedByName || "");
+          nextItem.reviewedAt = nextUpdatedAt;
+        }
+        return nextItem;
       })
     );
   };
 
-  const removeProFeedbackRequest = (requestId) => {
-    if (!activeSkater) return;
+  const removeProFeedbackRequest = (requestId, skaterIdOverride = "") => {
+    const requestSkaterId = String(skaterIdOverride || activeSkater?.id || "");
+    if (!requestSkaterId) return;
     if (!confirm("Delete this pro feedback request?")) return;
-    const current = toArray(proFeedbackRequestsBySkaterId[activeSkater.id]);
+    const current = toArray(proFeedbackRequestsBySkaterId[requestSkaterId]);
     setProFeedbackRequestsForSkater(
-      activeSkater.id,
+      requestSkaterId,
       current.filter((item) => item.id !== requestId)
     );
     toast("Request removed", "Pro feedback request deleted.", "warn");
@@ -4978,7 +7297,7 @@ export default function SkateTrainingPlanApp() {
           reminderFiredRef.current.add(key);
           try {
             new Notification(`${APP_NAME} Reminder`, {
-              body: `${ev.title || "Practice"} • ${ev.dateISO} ${formatStandardTime(ev.time)}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || participantLabel})`,
+              body: `${ev.title || "Practice"} • ${ev.dateISO} ${formatStandardTime(ev.time, uiLocale)}${ev.park ? ` • ${ev.park}` : ""} (${ev.skaterName || activeSkater?.name || participantLabel})`,
             });
           } catch {
             // ignore notification failures
@@ -5039,13 +7358,13 @@ export default function SkateTrainingPlanApp() {
         reminderExportBusyRef.current = false;
       }, 800);
       if (downloaded) {
-        toast("Calendar event ready", `${ev.dateISO} ${formatStandardTime(ev.time)} • reminder ${ev.remindMin}m`, "success");
+        toast("Calendar event ready", `${ev.dateISO} ${formatStandardTime(ev.time, uiLocale)} • reminder ${ev.remindMin}m`, "success");
       } else {
         toast("Calendar export failed", "Could not create calendar file on this browser.", "warn");
       }
       return ev;
     }
-    toast("Practice scheduled", `${ev.dateISO} ${formatStandardTime(ev.time)} • reminder ${ev.remindMin}m`, "success");
+    toast("Practice scheduled", `${ev.dateISO} ${formatStandardTime(ev.time, uiLocale)} • reminder ${ev.remindMin}m`, "success");
     return ev;
   };
 
@@ -5090,7 +7409,7 @@ export default function SkateTrainingPlanApp() {
       reminderExportBusyRef.current = false;
     }, 800);
     if (downloaded) {
-      toast("iCal ready", `${ev.dateISO} ${formatStandardTime(ev.time)}`, "success");
+      toast("iCal ready", `${ev.dateISO} ${formatStandardTime(ev.time, uiLocale)}`, "success");
     } else {
       toast("iCal failed", "Could not create calendar file on this browser.", "warn");
     }
@@ -5149,7 +7468,7 @@ export default function SkateTrainingPlanApp() {
           : ev
       ),
     });
-    toast("Practice updated", `${safeDate} ${formatStandardTime(safeTime)} saved.`, "success");
+    toast("Practice updated", `${safeDate} ${formatStandardTime(safeTime, uiLocale)} saved.`, "success");
     cancelPracticeEditor();
   };
 
@@ -5327,7 +7646,7 @@ export default function SkateTrainingPlanApp() {
       .sort((a, b) => (a.date > b.date ? 1 : -1))
       .slice(-14);
     return filtered.map((s) => ({
-      date: formatShortDate(s.date),
+      date: formatShortDate(s.date, uiLocale),
       pct: pct(s.totalCompleted || 0, s.totalTarget || 1),
       ovr: computeOVR(s),
       park: String(s.park || "").trim() || "Unknown Park",
@@ -5477,7 +7796,7 @@ export default function SkateTrainingPlanApp() {
           >
             {members.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.name} ({m.role})
+                {m.name} ({roleDisplayLabel(m.role)})
               </option>
             ))}
           </select>
@@ -5578,6 +7897,7 @@ export default function SkateTrainingPlanApp() {
   const settingsGhostBtnClass = isLightMode
     ? "rounded-2xl bg-slate-100 ring-1 ring-slate-300 px-4 py-2 text-sm font-semibold text-slate-800 hover:bg-slate-200"
     : "rounded-2xl bg-white/5 ring-1 ring-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/10";
+  const appShellThemeClass = isLightMode ? "af-shell af-shell--light" : "af-shell af-shell--dark";
   const appShellClass = isSkaterMember
     ? isLightMode
       ? "min-h-dvh overflow-x-hidden bg-gradient-to-b from-cyan-50 via-sky-100 to-teal-100 text-slate-900"
@@ -5609,7 +7929,20 @@ export default function SkateTrainingPlanApp() {
   const tabThemeProps = { lightMode: isLightMode, skaterMode: isSkaterMember };
 
   return (
-    <div className={appShellClass}>
+    <div className={`${appShellClass} ${appShellThemeClass} transition-[background-image,background-size] duration-500`} style={appShellPersonalStyle}>
+      <style>{`
+        .af-shell :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
+          backdrop-filter: blur(5px);
+        }
+        .af-shell.af-shell--dark :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
+          background-color: rgba(2, 6, 23, 0.32);
+          border-color: rgba(255, 255, 255, 0.22);
+        }
+        .af-shell.af-shell--light :is(input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="file"]), select, textarea) {
+          background-color: rgba(255, 255, 255, 0.74);
+          border-color: rgba(148, 163, 184, 0.45);
+        }
+      `}</style>
       <Toasts toasts={toasts} onDismiss={(id) => setToasts((p) => p.filter((x) => x.id !== id))} />
       <AnimatePresence>
         {xpPop ? (
@@ -5771,6 +8104,7 @@ export default function SkateTrainingPlanApp() {
             <div className="mt-1 text-xs text-cyan-200/90">
               Output: {formatDurationSec(trimmedDurationSec)} • max {videoEdit.maxDim}p • {videoEdit.fps}fps • {videoEdit.bitrateKbps} kbps
               {videoDrawStrokes.length ? ` • ${videoDrawStrokes.length} overlay stroke(s)` : ""}
+              {videoStickFigure.enabled ? " • stick figure guide" : ""}
             </div>
           </div>
 
@@ -5818,6 +8152,15 @@ export default function SkateTrainingPlanApp() {
               </button>
               <button
                 type="button"
+                onClick={() => setVideoStickFigure((prev) => ({ ...prev, enabled: !prev.enabled }))}
+                className={`rounded-xl px-3 py-1.5 text-xs font-semibold ring-1 ${
+                  videoStickFigure.enabled ? "bg-amber-500/20 ring-amber-400/30 text-amber-100" : "bg-white/5 ring-white/10 hover:bg-white/10"
+                }`}
+              >
+                {videoStickFigure.enabled ? "Stick Figure On" : "Stick Figure Guide"}
+              </button>
+              <button
+                type="button"
                 onClick={() => setVideoDrawStrokes((prev) => prev.slice(0, -1))}
                 disabled={!videoDrawStrokes.length}
                 className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-1.5 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
@@ -5854,8 +8197,131 @@ export default function SkateTrainingPlanApp() {
                 />
               ))}
             </div>
+            {videoStickFigure.enabled ? (
+              <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2 rounded-xl bg-black/30 ring-1 ring-white/10 p-2">
+                <label className="text-[11px] text-white/70">
+                  Size
+                  <input
+                    type="range"
+                    min={0.65}
+                    max={1.55}
+                    step={0.01}
+                    value={videoStickFigure.scale}
+                    onChange={(e) => setVideoStickFigure((prev) => ({ ...prev, scale: Number(e.target.value) || 1 }))}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="text-[11px] text-white/70">
+                  X Position
+                  <input
+                    type="range"
+                    min={0.08}
+                    max={0.92}
+                    step={0.01}
+                    value={videoStickFigure.x}
+                    onChange={(e) => setVideoStickFigure((prev) => ({ ...prev, x: Number(e.target.value) || 0.5 }))}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="text-[11px] text-white/70">
+                  Y Position
+                  <input
+                    type="range"
+                    min={0.18}
+                    max={0.92}
+                    step={0.01}
+                    value={videoStickFigure.y}
+                    onChange={(e) => setVideoStickFigure((prev) => ({ ...prev, y: Number(e.target.value) || 0.58 }))}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="text-[11px] text-white/70">
+                  Turn Angle
+                  <input
+                    type="range"
+                    min={-1}
+                    max={1}
+                    step={0.01}
+                    value={videoStickFigure.turn}
+                    onChange={(e) => setVideoStickFigure((prev) => ({ ...prev, turn: Number(e.target.value) || 0 }))}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="text-[11px] text-white/70">
+                  Leg Bend
+                  <input
+                    type="range"
+                    min={0}
+                    max={1}
+                    step={0.01}
+                    value={videoStickFigure.bend}
+                    onChange={(e) => setVideoStickFigure((prev) => ({ ...prev, bend: Number(e.target.value) || 0 }))}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <label className="text-[11px] text-white/70">
+                  Opacity
+                  <input
+                    type="range"
+                    min={0.2}
+                    max={1}
+                    step={0.01}
+                    value={videoStickFigure.opacity}
+                    onChange={(e) => setVideoStickFigure((prev) => ({ ...prev, opacity: Number(e.target.value) || 0.84 }))}
+                    className="mt-1 w-full"
+                  />
+                </label>
+                <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-white/60">Trick Preset</span>
+                  <select
+                    value={videoStickPresetKey}
+                    onChange={(e) => setVideoStickPresetKey(e.target.value)}
+                    className="min-w-[220px] rounded-lg bg-black/40 border border-white/10 px-2 py-1 text-[11px]"
+                  >
+                    {STICK_FIGURE_PRESET_OPTIONS.map((preset) => (
+                      <option key={`vsp-opt-${preset.key}`} value={preset.key}>
+                        {preset.group ? `${preset.group} • ` : ""}{preset.label}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => applyVideoStickPreset(videoStickPresetKey)}
+                    className="rounded-lg bg-cyan-500/20 ring-1 ring-cyan-400/30 px-2 py-1 text-[11px] font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                  >
+                    Apply
+                  </button>
+                  {STICK_FIGURE_QUICK_PRESET_KEYS.map((key) => (
+                    <button
+                      key={`vsp-quick-${key}`}
+                      type="button"
+                      onClick={() => {
+                        setVideoStickPresetKey(key);
+                        applyVideoStickPreset(key);
+                      }}
+                      className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-[11px] font-semibold hover:bg-white/10"
+                    >
+                      {STICK_FIGURE_PRESET_LABELS[key] || key}
+                    </button>
+                  ))}
+                </div>
+                <div className="sm:col-span-2 lg:col-span-4 flex flex-wrap items-center gap-2">
+                  <span className="text-[11px] text-white/60">Guide Color</span>
+                  {["#22d3ee", "#f59e0b", "#f43f5e", "#ffffff"].map((c) => (
+                    <button
+                      key={`fig-${c}`}
+                      type="button"
+                      onClick={() => setVideoStickFigure((prev) => ({ ...prev, color: c }))}
+                      className={`h-6 w-6 rounded-full ring-2 ${videoStickFigure.color === c ? "ring-white" : "ring-white/20"}`}
+                      style={{ backgroundColor: c }}
+                      title={`Guide color ${c}`}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : null}
             <div className="mt-2 text-[11px] text-white/60">
-              Turn drawing on, mark body/board position, then save. Trim + drawing will export into the updated clip.
+              Turn drawing on to mark movement. For vert/bowl, use Turn Angle + Leg Bend to line up shoulders, arms/hands, and legs during carves and turns.
             </div>
           </div>
 
@@ -5957,7 +8423,7 @@ export default function SkateTrainingPlanApp() {
         >
           <div className="flex items-start justify-between gap-3">
             <div className="min-w-0">
-              <div className={`text-[11px] font-extrabold tracking-[0.28em] ${brandTextClass}`}>SKATEFLOW</div>
+              <div className={`text-[11px] font-extrabold tracking-[0.28em] ${brandTextClass}`}>{APP_WORDMARK}</div>
               <div className={`mt-0.5 text-[10px] ${buildTextClass}`}>Build {BUILD_STAMP}</div>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 <div className="text-base sm:text-lg font-bold tracking-tight">{APP_NAME}</div>
@@ -5969,11 +8435,19 @@ export default function SkateTrainingPlanApp() {
                 </Pill>
                 {activeMember?.role === "owner" ? (
                   <Pill tone="good" lightMode={isLightMode}>
-                    <Crown className="h-3.5 w-3.5" /> Owner
+                    <Crown className="h-3.5 w-3.5" /> {tx("role.owner", "Owner")}
                   </Pill>
                 ) : activeMember?.role === "coach" ? (
                   <Pill tone="warn" lightMode={isLightMode}>
-                    <Crown className="h-3.5 w-3.5" /> Coach
+                    <Crown className="h-3.5 w-3.5" /> {tx("role.coach", "Coach")}
+                  </Pill>
+                ) : activeMember?.role === "proskater" ? (
+                  <Pill tone="good" lightMode={isLightMode}>
+                    <Crown className="h-3.5 w-3.5" /> {tx("role.proskater", "Pro Skater")}
+                  </Pill>
+                ) : activeMember?.role === "media" ? (
+                  <Pill tone="neutral" lightMode={isLightMode}>
+                    <VideoIcon className="h-3.5 w-3.5" /> {tx("role.media", "Media")}
                   </Pill>
                 ) : activeMember?.role === "skater" ? (
                   <Pill tone="cyan" lightMode={isLightMode}>
@@ -5981,10 +8455,16 @@ export default function SkateTrainingPlanApp() {
                   </Pill>
                 ) : (
                   <Pill tone="neutral" lightMode={isLightMode}>
-                    <Users className="h-3.5 w-3.5" /> Dad
+                    <Users className="h-3.5 w-3.5" /> {tx("role.dad", "Dad")}
                   </Pill>
                 )}
+                {programProfile.enabled ? (
+                  <Pill tone={isHighSchoolProgram ? "warn" : "neutral"} lightMode={isLightMode}>
+                    <Users className="h-3.5 w-3.5" /> {isHighSchoolProgram ? "High School Team" : programHeaderLabel}
+                  </Pill>
+                ) : null}
               </div>
+              <div className={`mt-1 text-[11px] ${buildTextClass}`}>{appTagline}</div>
             </div>
 
             <div className="flex items-center gap-2">
@@ -6051,18 +8531,29 @@ export default function SkateTrainingPlanApp() {
                 : "hidden") + " sm:mt-3 sm:grid sm:grid-cols-6 lg:grid-cols-12 sm:gap-2"
             }
           >
-            <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label="Log" {...tabThemeProps} onClick={() => switchView("log")} />
-            <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label="Cards" {...tabThemeProps} onClick={() => switchView("cards")} />
-            <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label="Calendar" {...tabThemeProps} onClick={() => switchView("calendar")} />
-            <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label="Stats" {...tabThemeProps} onClick={() => switchView("dash")} />
-            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label="Plans" {...tabThemeProps} onClick={() => switchView("plans")} />
-            {proFeedbackAvailable ? <TabButton active={ui.view === "profeedback"} tabKey="profeedback" icon={Crown} label="Pro" {...tabThemeProps} onClick={() => switchView("profeedback")} /> : null}
-            {!isSkaterMember ? <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label="Coach" {...tabThemeProps} onClick={() => switchView("coach")} /> : null}
-            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label="Free Skate" {...tabThemeProps} onClick={() => switchView("skateday")} />
-            <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label="Contest" {...tabThemeProps} onClick={() => switchView("contest")} />
-            {!isSkaterMember ? <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label="Team" {...tabThemeProps} onClick={() => switchView("team")} /> : null}
-            <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label="Chat" {...tabThemeProps} onClick={() => switchView("chat")} />
-            {!isSkaterMember ? <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label="Settings" {...tabThemeProps} onClick={() => switchView("settings")} /> : null}
+            <TabButton active={ui.view === "log"} tabKey="log" icon={ClipboardList} label={tx("tabs.log", "Log")} {...tabThemeProps} onClick={() => switchView("log")} />
+            <TabButton active={ui.view === "cards"} tabKey="cards" icon={LayoutGrid} label={tx("tabs.cards", "Cards")} {...tabThemeProps} onClick={() => switchView("cards")} />
+            <TabButton active={ui.view === "calendar"} tabKey="calendar" icon={Calendar} label={tx("tabs.calendar", "Calendar")} {...tabThemeProps} onClick={() => switchView("calendar")} />
+            <TabButton active={ui.view === "dash"} tabKey="dash" icon={BarChart3} label={tx("tabs.stats", "Stats")} {...tabThemeProps} onClick={() => switchView("dash")} />
+            <TabButton active={ui.view === "plans"} tabKey="plans" icon={Pencil} label={tx("tabs.plans", "Plans")} {...tabThemeProps} onClick={() => switchView("plans")} />
+            {proFeedbackAvailable ? (
+              <TabButton active={ui.view === "profeedback"} tabKey="profeedback" icon={Crown} label={tx("tabs.pro", "Pro")} {...tabThemeProps} onClick={() => switchView("profeedback")} />
+            ) : null}
+            {roleAllowedViews.has("coach") ? (
+              <TabButton active={ui.view === "coach"} tabKey="coach" icon={VideoIcon} label={tx("tabs.coach", "Coach")} {...tabThemeProps} onClick={() => switchView("coach")} />
+            ) : null}
+            <TabButton active={ui.view === "skateday"} tabKey="skateday" icon={MapPin} label={tx("tabs.freeSkate", "Free Skate")} {...tabThemeProps} onClick={() => switchView("skateday")} />
+            <TabButton active={ui.view === "contest"} tabKey="contest" icon={Trophy} label={tx("tabs.contest", "Contest")} {...tabThemeProps} onClick={() => switchView("contest")} />
+            {roleAllowedViews.has("academy") ? (
+              <TabButton active={ui.view === "academy"} tabKey="academy" icon={School} label={tx("tabs.academy", "Academy")} {...tabThemeProps} onClick={() => switchView("academy")} />
+            ) : null}
+            {roleAllowedViews.has("team") ? (
+              <TabButton active={ui.view === "team"} tabKey="team" icon={Users} label={tx("tabs.team", "Team")} {...tabThemeProps} onClick={() => switchView("team")} />
+            ) : null}
+            <TabButton active={ui.view === "chat"} tabKey="chat" icon={MessageSquare} label={tx("tabs.chat", "Chat")} {...tabThemeProps} onClick={() => switchView("chat")} />
+            {roleAllowedViews.has("settings") ? (
+              <TabButton active={ui.view === "settings"} tabKey="settings" icon={Settings} label={tx("tabs.settings", "Settings")} {...tabThemeProps} onClick={() => switchView("settings")} />
+            ) : null}
           </div>
         </div>
 
@@ -6075,7 +8566,7 @@ export default function SkateTrainingPlanApp() {
                     <div className="text-xs tracking-widest text-white/50">SESSION BUILDER</div>
                     <div className="mt-1 text-xl font-extrabold tracking-tight">Log Today’s Work</div>
                     <div className="mt-1 text-xs text-white/50">
-                      Auto-saved at {lastDraftSavedAt.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" })}
+                      Auto-saved at {formatClockTime(lastDraftSavedAt)}
                     </div>
                     <div className="mt-2 flex flex-wrap gap-2">
                       <Pill tone={halfwayReached ? "good" : "bad"}>
@@ -6229,6 +8720,9 @@ export default function SkateTrainingPlanApp() {
                     <div className="mt-4 grid grid-cols-2 sm:grid-cols-4 gap-2">
                       {draftMedia.map((m) => {
                         const isVideo = m.type?.startsWith("video/");
+                        const trickAssist = normalizeTrickAssist(m?.trickAssist, m?.name || "");
+                        const selectedTrickName = String(trickAssist.selectedTrickName || "");
+                        const trickSuggestions = toArray(trickAssist.suggestions);
                         return (
                           <div key={m.id} className="relative overflow-hidden rounded-2xl bg-black ring-1 ring-white/10">
                             <div className="aspect-square">
@@ -6252,6 +8746,41 @@ export default function SkateTrainingPlanApp() {
                                 {isVideo ? <VideoIcon className="h-3.5 w-3.5" /> : <ImageIcon className="h-3.5 w-3.5" />} {isVideo ? "Video" : "Photo"}
                               </Pill>
                             </div>
+                            {isVideo ? (
+                              <div className="border-t border-white/10 bg-black/70 p-2 space-y-1.5">
+                                <div className="text-[10px] uppercase tracking-wide text-cyan-200/80">AI trick detect</div>
+                                <input
+                                  value={selectedTrickName}
+                                  onChange={(e) => setDraftMediaTrickName(m.id, e.target.value)}
+                                  placeholder="Set trick"
+                                  list="trick-name-list"
+                                  className="w-full rounded-lg bg-black/50 border border-white/10 px-2 py-1.5 text-[11px]"
+                                />
+                                {trickSuggestions.length ? (
+                                  <div className="flex flex-wrap gap-1">
+                                    {trickSuggestions.map((sugg) => {
+                                      const isActive = selectedTrickName.trim().toLowerCase() === String(sugg?.name || "").trim().toLowerCase();
+                                      return (
+                                        <button
+                                          key={`${m.id}:${sugg.id}`}
+                                          type="button"
+                                          onClick={() => setDraftMediaTrickFromSuggestion(m.id, sugg)}
+                                          className={`rounded-md px-1.5 py-1 text-[10px] font-semibold ring-1 ${
+                                            isActive
+                                              ? "bg-cyan-500/30 text-cyan-100 ring-cyan-400/40"
+                                              : "bg-white/5 text-white/90 ring-white/10 hover:bg-white/10"
+                                          }`}
+                                        >
+                                          {sugg.name} • {Math.round((Number(sugg.confidence) || 0) * 100)}%
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="text-[10px] text-white/55">No strong filename match. Type trick manually.</div>
+                                )}
+                              </div>
+                            ) : null}
                           </div>
                         );
                       })}
@@ -6399,7 +8928,7 @@ export default function SkateTrainingPlanApp() {
                   </div>
                   <div className="mt-4 grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
                     {filteredProgressCards.map((c) => (
-                      <ProgressCard key={c.id} card={c} skater={activeSkater} />
+                      <ProgressCard key={c.id} card={c} skater={activeSkater} locale={uiLocale} />
                     ))}
                   </div>
                 </>
@@ -6475,7 +9004,7 @@ export default function SkateTrainingPlanApp() {
                         type="time"
                         className={isLightMode ? "mt-1 w-full rounded-xl bg-white border border-slate-300 px-3 py-2" : "mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"}
                       />
-                      <div className={isLightMode ? "mt-1 text-[11px] text-slate-500" : "mt-1 text-[11px] text-white/50"}>{formatStandardTime(reminders.time)}</div>
+                      <div className={isLightMode ? "mt-1 text-[11px] text-slate-500" : "mt-1 text-[11px] text-white/50"}>{formatStandardTime(reminders.time, uiLocale)}</div>
                     </div>
                     <div>
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Duration (min)</div>
@@ -6536,7 +9065,7 @@ export default function SkateTrainingPlanApp() {
                       <div className={isLightMode ? "text-xs text-slate-500" : "text-xs text-white/60"}>Next Practice</div>
                       <div className="text-sm font-bold">
                         {nextPracticeEvent
-                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${formatStandardTime(nextPracticeEvent.time)}${nextPracticeEvent.park ? ` • ${nextPracticeEvent.park}` : ""}`
+                          ? `${nextPracticeEvent.title || "Practice"} • ${nextPracticeEvent.dateISO} ${formatStandardTime(nextPracticeEvent.time, uiLocale)}${nextPracticeEvent.park ? ` • ${nextPracticeEvent.park}` : ""}`
                           : "No upcoming practice"}
                       </div>
                     </div>
@@ -6557,7 +9086,7 @@ export default function SkateTrainingPlanApp() {
                   >
                     Prev
                   </button>
-                  <div className="text-sm font-extrabold">{formatMonthLabel(calendarMonthKey)}</div>
+                  <div className="text-sm font-extrabold">{formatMonthLabel(calendarMonthKey, uiLocale)}</div>
                   <button
                     type="button"
                     onClick={() => setCalendarMonthKey((p) => shiftMonth(p, 1))}
@@ -6601,7 +9130,7 @@ export default function SkateTrainingPlanApp() {
                         <div className="mt-1 space-y-1">
                           {events.slice(0, 2).map((ev) => (
                             <div key={ev.id} className="truncate text-[10px]">
-                              {formatStandardTime(ev.time)} {ev.title || "Practice"}{ev.park ? ` @ ${ev.park}` : ""}
+                              {formatStandardTime(ev.time, uiLocale)} {ev.title || "Practice"}{ev.park ? ` @ ${ev.park}` : ""}
                             </div>
                           ))}
                         </div>
@@ -6617,7 +9146,7 @@ export default function SkateTrainingPlanApp() {
                       <div key={ev.id} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 px-3 py-2" : "rounded-xl bg-black/30 ring-1 ring-white/10 px-3 py-2"}>
                         <div className="flex flex-wrap items-center justify-between gap-2">
                           <div className="text-sm font-bold">
-                            {ev.dateISO} • {formatStandardTime(ev.time)} • {ev.title || "Practice"}{ev.park ? ` • ${ev.park}` : ""}
+                            {ev.dateISO} • {formatStandardTime(ev.time, uiLocale)} • {ev.title || "Practice"}{ev.park ? ` • ${ev.park}` : ""}
                           </div>
                           <div className="flex gap-2">
                             <button
@@ -6952,13 +9481,13 @@ export default function SkateTrainingPlanApp() {
                     <div className="space-y-3">
                       <div className={`text-xs ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
                         {weatherState.parkName || selectedParkProfile?.name || "Selected park"} • Updated{" "}
-                        {weatherState.fetchedAt ? new Date(weatherState.fetchedAt).toLocaleTimeString() : "now"}
+                        {weatherState.fetchedAt ? formatClockTime(weatherState.fetchedAt) : "now"}
                       </div>
                       <div className={`text-xs ${isLightMode ? "text-slate-600" : "text-white/60"}`}>Daily forecast (today + next 4 days)</div>
                       <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
                         {weatherState.daily.slice(0, 5).map((d, idx) => (
                           <div key={d.dateISO} className={isLightMode ? "rounded-xl bg-slate-50 ring-1 ring-slate-300 p-3" : "rounded-xl bg-black/30 ring-1 ring-white/10 p-3"}>
-                            <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>{idx === 0 ? "Today" : formatShortDate(d.dateISO)}</div>
+                            <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/60"}`}>{idx === 0 ? "Today" : formatShortDate(d.dateISO, uiLocale)}</div>
                             <div className="mt-1 text-sm font-bold">{weatherCodeLabel(d.code)}</div>
                             <div className={`text-xs mt-1 ${isLightMode ? "text-slate-600" : "text-white/70"}`}>
                               {d.maxF}F / {d.minF}F
@@ -7187,6 +9716,125 @@ export default function SkateTrainingPlanApp() {
                   ) : null}
                 </div>
 
+                <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">Skate Trick Catalog</div>
+                      <div className="text-xs text-white/60">
+                        Street • Vert • Pool/Bowl • Combi • Mega. Save learned tricks and wishlist to this {participantLabelLower} profile.
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill tone="good">Learned {learnedTrickCount}</Pill>
+                      <Pill tone="warn">Wishlist {wishlistTrickCount}</Pill>
+                    </div>
+                  </div>
+                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-12 gap-2">
+                    <div className="sm:col-span-3">
+                      <select
+                        value={trickCategoryFilter}
+                        onChange={(e) => setTrickCategoryFilter(e.target.value)}
+                        className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      >
+                        {trickCategoryOptions.map((opt) => (
+                          <option key={`cat-${opt.key}`} value={opt.key}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="sm:col-span-5">
+                      <input
+                        value={trickSearch}
+                        onChange={(e) => setTrickSearch(e.target.value)}
+                        placeholder="Search trick..."
+                        className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="sm:col-span-4 text-xs text-white/60 flex items-center justify-start sm:justify-end">
+                      Showing {filteredTrickCatalog.length} trick{filteredTrickCatalog.length === 1 ? "" : "s"}
+                    </div>
+                  </div>
+
+                  {canEditPlans ? (
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-12 gap-2">
+                      <div className="sm:col-span-5">
+                        <input
+                          value={customTrickDraft.name}
+                          onChange={(e) => setCustomTrickDraft((prev) => ({ ...prev, name: e.target.value }))}
+                          placeholder="Add custom trick (e.g., Alley-oop air)"
+                          className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div className="sm:col-span-4">
+                        <select
+                          value={customTrickDraft.category}
+                          onChange={(e) => setCustomTrickDraft((prev) => ({ ...prev, category: e.target.value }))}
+                          className="w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        >
+                          {SKATE_TRICK_CATALOG.map((cat) => (
+                            <option key={`custom-${cat.key}`} value={cat.key}>
+                              {cat.label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="sm:col-span-3">
+                        <button
+                          type="button"
+                          onClick={addCustomCatalogTrick}
+                          className="w-full rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-sm font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                        >
+                          Add Custom Trick
+                        </button>
+                      </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-3 max-h-[44vh] overflow-auto space-y-2 pr-1">
+                    {filteredTrickCatalog.map((trick) => {
+                      const learned = toArray(activeTrickProfile.learnedIds).includes(trick.id);
+                      const wish = toArray(activeTrickProfile.wishlistIds).includes(trick.id);
+                      return (
+                        <div key={trick.id} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <div className="min-w-0 flex-1">
+                              <div className="text-sm font-semibold truncate">{trick.name}</div>
+                              <div className="text-[11px] text-white/60">{trick.categoryLabel}</div>
+                            </div>
+                            <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={learned}
+                                onChange={(e) => toggleTrickLearned(trick.id, e.target.checked)}
+                              />
+                              Learned
+                            </label>
+                            <label className="inline-flex items-center gap-2 rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs">
+                              <input
+                                type="checkbox"
+                                checked={wish}
+                                onChange={(e) => toggleTrickWishlist(trick.id, e.target.checked)}
+                              />
+                              Wishlist
+                            </label>
+                            {trick.isCustom && canEditPlans ? (
+                              <button
+                                type="button"
+                                onClick={() => removeCustomCatalogTrick(trick.id)}
+                                className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs font-semibold hover:bg-white/10"
+                              >
+                                Remove
+                              </button>
+                            ) : null}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!filteredTrickCatalog.length ? <div className="text-xs text-white/60">No tricks match this filter.</div> : null}
+                  </div>
+                </div>
+
                 <div className="mt-5 space-y-3">
                   {Object.entries(plans).map(([dayName, dayTasks]) => (
                     <div key={dayName} className="rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
@@ -7223,8 +9871,24 @@ export default function SkateTrainingPlanApp() {
                                   <input
                                     value={t.label || ""}
                                     onChange={(e) => updatePlanTask(dayName, t.id, { label: e.target.value })}
+                                    list="trick-name-list"
                                     className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                                   />
+                                  <select
+                                    defaultValue=""
+                                    onChange={(e) => {
+                                      applyCatalogTrickToTask(dayName, t.id, e.target.value);
+                                      e.currentTarget.value = "";
+                                    }}
+                                    className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                                  >
+                                    <option value="">Pick from trick catalog...</option>
+                                    {planTrickDropdownOptions.map((trick) => (
+                                      <option key={`task-pick-${dayName}-${t.id}-${trick.id}`} value={trick.name}>
+                                        {trick.name} • {trick.categoryLabel}
+                                      </option>
+                                    ))}
+                                  </select>
                                 </div>
                                 <div className="sm:col-span-2">
                                   <div className="text-[11px] text-white/60">Reps</div>
@@ -7273,9 +9937,25 @@ export default function SkateTrainingPlanApp() {
                               <input
                                 value={String(newTaskDraftByDay?.[dayName]?.label || "")}
                                 onChange={(e) => setNewTaskDraftField(dayName, "label", e.target.value)}
+                                list="trick-name-list"
                                 placeholder="New task"
                                 className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
                               />
+                              <select
+                                defaultValue=""
+                                onChange={(e) => {
+                                  applyCatalogTrickToNewTask(dayName, e.target.value);
+                                  e.currentTarget.value = "";
+                                }}
+                                className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                              >
+                                <option value="">Pick from trick catalog...</option>
+                                {planTrickDropdownOptions.map((trick) => (
+                                  <option key={`new-task-pick-${dayName}-${trick.id}`} value={trick.name}>
+                                    {trick.name} • {trick.categoryLabel}
+                                  </option>
+                                ))}
+                              </select>
                             </div>
                             <div className="sm:col-span-2">
                               <div className="text-[11px] text-white/60">Reps</div>
@@ -7311,62 +9991,75 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "coach" && !isSkaterMember ? (
+          {ui.view === "coach" && roleAllowedViews.has("coach") ? (
             <motion.div key="coach" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <div className="text-xs tracking-widest text-white/50">COACH CORNER</div>
+                    <div className="text-xs tracking-widest text-white/50">{isSkaterMember ? "COACH VIEW" : "COACH CORNER"}</div>
                     <div className="mt-1 text-xl font-extrabold">Demo Library • {activeSkater?.name || participantLabel}</div>
-                    <div className="mt-2 text-sm text-white/60">Coach, parent, or owner can upload trick demos and link them to plan tricks.</div>
+                    <div className="mt-2 text-sm text-white/60">
+                      {isSkaterMember
+                        ? "Skater mode can view demo clips, compare videos, and review body mechanics overlays."
+                        : "Coach, parent, or owner can upload trick demos and link them to plan tricks."}
+                    </div>
                   </div>
-                  <Pill tone="neutral">{activeCoachItems.length} demos</Pill>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {isSkaterMember ? <Pill tone="warn">Skater View (Read-only)</Pill> : null}
+                    <Pill tone="neutral">{activeCoachItems.length} demos</Pill>
+                  </div>
                 </div>
 
-                <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div>
-                      <div className="text-xs text-white/60">Title</div>
-                      <input
-                        value={coachDraft.title}
-                        onChange={(e) => setCoachDraft((p) => ({ ...p, title: e.target.value }))}
-                        placeholder="Backside air demo"
-                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                      />
+                {canManageCoachCorner ? (
+                  <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div>
+                        <div className="text-xs text-white/60">Title</div>
+                        <input
+                          value={coachDraft.title}
+                          onChange={(e) => setCoachDraft((p) => ({ ...p, title: e.target.value }))}
+                          placeholder="Backside air demo"
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/60">Linked Trick</div>
+                        <select
+                          value={coachDraft.taskLabel}
+                          onChange={(e) => setCoachDraft((p) => ({ ...p, taskLabel: e.target.value }))}
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        >
+                          <option value="">Not linked</option>
+                          {coachTaskOptions.map((label) => (
+                            <option key={label} value={label}>
+                              {label}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/60">Notes</div>
+                        <input
+                          value={coachDraft.notes}
+                          onChange={(e) => setCoachDraft((p) => ({ ...p, notes: e.target.value }))}
+                          placeholder="Focus on shoulder position"
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs text-white/60">Linked Trick</div>
-                      <select
-                        value={coachDraft.taskLabel}
-                        onChange={(e) => setCoachDraft((p) => ({ ...p, taskLabel: e.target.value }))}
-                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                      >
-                        <option value="">Not linked</option>
-                        {coachTaskOptions.map((label) => (
-                          <option key={label} value={label}>
-                            {label}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    <div>
-                      <div className="text-xs text-white/60">Notes</div>
-                      <input
-                        value={coachDraft.notes}
-                        onChange={(e) => setCoachDraft((p) => ({ ...p, notes: e.target.value }))}
-                        placeholder="Focus on shoulder position"
-                        className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                      />
+                    <div className="mt-3 flex items-center gap-2">
+                      <label className="cursor-pointer rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90 inline-flex items-center gap-2">
+                        <Upload className="h-4 w-4" /> Add Demo Media
+                        <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => addCoachDemoFromFiles(e.target.files)} />
+                      </label>
+                      <div className="text-xs text-white/60">Images auto-compress for easier uploads.</div>
                     </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <label className="cursor-pointer rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90 inline-flex items-center gap-2">
-                      <Upload className="h-4 w-4" /> Add Demo Media
-                      <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => addCoachDemoFromFiles(e.target.files)} />
-                    </label>
-                    <div className="text-xs text-white/60">Images auto-compress for easier uploads.</div>
+                ) : (
+                  <div className="mt-4 rounded-3xl bg-cyan-500/10 ring-1 ring-cyan-400/30 p-4 text-sm text-cyan-100">
+                    Skater mode is view-only here. Coach/parent/owner can add or edit demo clips from their login.
                   </div>
-                </div>
+                )}
 
                 <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
                   <div className="flex items-center justify-between gap-2">
@@ -7386,14 +10079,17 @@ export default function SkateTrainingPlanApp() {
                           <div className="mt-2 text-[11px] text-white/60">
                             {clip.date || "No date"} • {clip.dayType || "Session"}{clip.park ? ` • ${clip.park}` : ""}
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => openSessionVideoEditor(clip.sessionId, clip.mediaId)}
-                            className="mt-2 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30"
-                          >
-                            <Pencil className="h-3.5 w-3.5 inline-block mr-1" />
-                            Coach Edit Clip
-                          </button>
+                          {clip.trickLabel ? <div className="mt-1 text-[11px] text-cyan-200">Trick: {clip.trickLabel}</div> : null}
+                          {canManageCoachCorner ? (
+                            <button
+                              type="button"
+                              onClick={() => openSessionVideoEditor(clip.sessionId, clip.mediaId)}
+                              className="mt-2 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-1.5 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                            >
+                              <Pencil className="h-3.5 w-3.5 inline-block mr-1" />
+                              Coach Edit Clip
+                            </button>
+                          ) : null}
                           <button
                             type="button"
                             onClick={() => setCompareStudentClipKey(clip.key)}
@@ -7448,7 +10144,7 @@ export default function SkateTrainingPlanApp() {
                         {!coachStudentVideoClips.length ? <option value="">No student videos yet</option> : null}
                         {coachStudentVideoClips.map((clip) => (
                           <option key={clip.key} value={clip.key}>
-                            {clip.date || "No date"} • {clip.dayType || "Session"}{clip.park ? ` • ${clip.park}` : ""}
+                            {clip.date || "No date"} • {clip.dayType || "Session"}{clip.park ? ` • ${clip.park}` : ""}{clip.trickLabel ? ` • ${clip.trickLabel}` : ""}
                           </option>
                         ))}
                       </select>
@@ -7511,29 +10207,186 @@ export default function SkateTrainingPlanApp() {
                     </div>
                   </div>
 
+                  <div className="mt-3 rounded-2xl bg-black/35 ring-1 ring-white/10 p-3">
+                    <div className="text-xs text-white/70">Biomechanics stick figure overlay</div>
+                    <div className="mt-2 grid grid-cols-1 lg:grid-cols-2 gap-3">
+                      {[
+                        { key: "coach", label: "Coach Guide", accent: "text-cyan-200" },
+                        { key: "student", label: "Student Guide", accent: "text-amber-200" },
+                      ].map((item) => {
+                        const guide = compareStickFigureBySide[item.key];
+                        return (
+                          <div key={item.key} className="rounded-xl bg-black/30 ring-1 ring-white/10 p-2.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className={`text-xs font-semibold ${item.accent}`}>{item.label}</div>
+                              <button
+                                type="button"
+                                onClick={() => updateCompareStickFigure(item.key, { enabled: !guide.enabled })}
+                                className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold ring-1 ${
+                                  guide.enabled
+                                    ? item.key === "coach"
+                                      ? "bg-cyan-500/20 ring-cyan-400/30 text-cyan-100"
+                                      : "bg-amber-500/20 ring-amber-400/30 text-amber-100"
+                                    : "bg-white/5 ring-white/10 text-white/80 hover:bg-white/10"
+                                }`}
+                              >
+                                {guide.enabled ? "On" : "Off"}
+                              </button>
+                            </div>
+                            {guide.enabled ? (
+                              <>
+                                <label className="mt-2 block text-[11px] text-white/60">
+                                  Size
+                                  <input
+                                    type="range"
+                                    min={0.65}
+                                    max={1.55}
+                                    step={0.01}
+                                    value={guide.scale}
+                                    onChange={(e) => updateCompareStickFigure(item.key, { scale: Number(e.target.value) || 1 })}
+                                    className="mt-1 w-full"
+                                  />
+                                </label>
+                                <label className="mt-2 block text-[11px] text-white/60">
+                                  Opacity
+                                  <input
+                                    type="range"
+                                    min={0.2}
+                                    max={1}
+                                    step={0.01}
+                                    value={guide.opacity}
+                                    onChange={(e) => updateCompareStickFigure(item.key, { opacity: Number(e.target.value) || 0.84 })}
+                                    className="mt-1 w-full"
+                                  />
+                                </label>
+                                <label className="mt-2 block text-[11px] text-white/60">
+                                  X Position
+                                  <input
+                                    type="range"
+                                    min={0.08}
+                                    max={0.92}
+                                    step={0.01}
+                                    value={guide.x}
+                                    onChange={(e) => updateCompareStickFigure(item.key, { x: Number(e.target.value) || 0.5 })}
+                                    className="mt-1 w-full"
+                                  />
+                                </label>
+                                <label className="mt-2 block text-[11px] text-white/60">
+                                  Y Position
+                                  <input
+                                    type="range"
+                                    min={0.18}
+                                    max={0.92}
+                                    step={0.01}
+                                    value={guide.y}
+                                    onChange={(e) => updateCompareStickFigure(item.key, { y: Number(e.target.value) || 0.58 })}
+                                    className="mt-1 w-full"
+                                  />
+                                </label>
+                                <label className="mt-2 block text-[11px] text-white/60">
+                                  Turn Angle
+                                  <input
+                                    type="range"
+                                    min={-1}
+                                    max={1}
+                                    step={0.01}
+                                    value={guide.turn}
+                                    onChange={(e) => updateCompareStickFigure(item.key, { turn: Number(e.target.value) || 0 })}
+                                    className="mt-1 w-full"
+                                  />
+                                </label>
+                                <label className="mt-2 block text-[11px] text-white/60">
+                                  Leg Bend
+                                  <input
+                                    type="range"
+                                    min={0}
+                                    max={1}
+                                    step={0.01}
+                                    value={guide.bend}
+                                    onChange={(e) => updateCompareStickFigure(item.key, { bend: Number(e.target.value) || 0 })}
+                                    className="mt-1 w-full"
+                                  />
+                                </label>
+                                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                                  <span className="text-[10px] text-white/55">Preset</span>
+                                  <select
+                                    value={compareStickPresetKeyBySide[item.key] || "bowl_vert"}
+                                    onChange={(e) =>
+                                      setCompareStickPresetKeyBySide((prev) => ({
+                                        ...toObj(prev, {}),
+                                        [item.key]: e.target.value,
+                                      }))
+                                    }
+                                    className="min-w-[180px] rounded-md bg-black/40 border border-white/10 px-1.5 py-1 text-[10px]"
+                                  >
+                                    {STICK_FIGURE_PRESET_OPTIONS.map((preset) => (
+                                      <option key={`csp-opt-${item.key}-${preset.key}`} value={preset.key}>
+                                        {preset.group ? `${preset.group} • ` : ""}{preset.label}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  <button
+                                    type="button"
+                                    onClick={() => applyCompareStickPreset(item.key, compareStickPresetKeyBySide[item.key] || "bowl_vert")}
+                                    className="rounded-md bg-cyan-500/20 ring-1 ring-cyan-400/30 px-1.5 py-0.5 text-[10px] font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                                  >
+                                    Apply
+                                  </button>
+                                  {STICK_FIGURE_QUICK_PRESET_KEYS.map((key) => (
+                                    <button
+                                      key={`csp-quick-${item.key}-${key}`}
+                                      type="button"
+                                      onClick={() => {
+                                        setCompareStickPresetKeyBySide((prev) => ({
+                                          ...toObj(prev, {}),
+                                          [item.key]: key,
+                                        }));
+                                        applyCompareStickPreset(item.key, key);
+                                      }}
+                                      className="rounded-md bg-white/5 ring-1 ring-white/10 px-1.5 py-0.5 text-[10px] font-semibold hover:bg-white/10"
+                                    >
+                                      {STICK_FIGURE_PRESET_LABELS[key] || key}
+                                    </button>
+                                  ))}
+                                </div>
+                              </>
+                            ) : null}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
                   <div className="mt-3 grid grid-cols-1 lg:grid-cols-2 gap-3">
                     <div className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
                       <div className="mb-2 text-xs text-white/60 truncate">
                         Coach: {selectedCoachCompareClip ? `${selectedCoachCompareClip.title}${selectedCoachCompareClip.trickLabel ? ` • ${selectedCoachCompareClip.trickLabel}` : ""}` : "No coach clip selected"}
                       </div>
-                      <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+                      <div className="relative aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
                         {selectedCoachCompareClip ? (
                           <video ref={compareCoachVideoRef} src={mediaSrc(selectedCoachCompareClip.media)} className="h-full w-full object-cover" controls playsInline />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-xs text-white/60">Select a coach demo video.</div>
                         )}
+                        <StickFigureOverlay guide={compareStickFigureBySide.coach} />
                       </div>
                     </div>
                     <div className="rounded-2xl bg-black/40 ring-1 ring-white/10 p-2">
                       <div className="mb-2 text-xs text-white/60 truncate">
-                        Student: {selectedStudentCompareClip ? `${selectedStudentCompareClip.date || "No date"} • ${selectedStudentCompareClip.dayType || "Session"}${selectedStudentCompareClip.park ? ` • ${selectedStudentCompareClip.park}` : ""}` : "No student clip selected"}
+                        Student:{" "}
+                        {selectedStudentCompareClip
+                          ? `${selectedStudentCompareClip.date || "No date"} • ${selectedStudentCompareClip.dayType || "Session"}${selectedStudentCompareClip.park ? ` • ${selectedStudentCompareClip.park}` : ""}${
+                              selectedStudentCompareClip.trickLabel ? ` • ${selectedStudentCompareClip.trickLabel}` : ""
+                            }`
+                          : "No student clip selected"}
                       </div>
-                      <div className="aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
+                      <div className="relative aspect-video overflow-hidden rounded-xl bg-black ring-1 ring-white/10">
                         {selectedStudentCompareClip ? (
                           <video ref={compareStudentVideoRef} src={mediaSrc(selectedStudentCompareClip.media)} className="h-full w-full object-cover" controls playsInline />
                         ) : (
                           <div className="h-full w-full flex items-center justify-center text-xs text-white/60">Select a student video.</div>
                         )}
+                        <StickFigureOverlay guide={compareStickFigureBySide.student} />
                       </div>
                     </div>
                   </div>
@@ -7547,9 +10400,11 @@ export default function SkateTrainingPlanApp() {
                           <div className="text-sm font-bold">{item.title || "Demo"}</div>
                           <div className="text-xs text-white/60">{item.taskLabel || "No trick link"}</div>
                         </div>
-                        <button type="button" onClick={() => deleteCoachDemo(item.id)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/10">
-                          <Trash2 className="h-4 w-4" />
-                        </button>
+                        {canManageCoachCorner ? (
+                          <button type="button" onClick={() => deleteCoachDemo(item.id)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/10">
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        ) : null}
                       </div>
                       {item.notes ? <div className="mt-2 text-xs text-white/70">{item.notes}</div> : null}
                       <div className="mt-3 grid grid-cols-2 gap-2">
@@ -7813,13 +10668,22 @@ export default function SkateTrainingPlanApp() {
                   </button>
                 </div>
 
-                <div className="mt-4 grid grid-cols-1 sm:grid-cols-4 gap-3">
+                <div className="mt-4 grid grid-cols-1 sm:grid-cols-5 gap-3">
                   <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3 sm:col-span-2">
                     <div className="text-xs text-white/60">Contest Name</div>
                     <input
                       value={contestState.eventName || ""}
                       onChange={(e) => patchContestState({ eventName: e.target.value })}
                       placeholder="LIMUP Competition Series"
+                      className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
+                    />
+                  </div>
+                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                    <div className="text-xs text-white/60">Park</div>
+                    <input
+                      value={contestState.eventPark || ""}
+                      onChange={(e) => patchContestState({ eventPark: e.target.value })}
+                      placeholder="Clairmont Skatepark"
                       className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
                     />
                   </div>
@@ -7841,6 +10705,135 @@ export default function SkateTrainingPlanApp() {
                       className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
                     />
                   </div>
+                  <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                    <div className="text-xs text-white/60">Division</div>
+                    <input
+                      value={contestState.eventDivision || ""}
+                      onChange={(e) => patchContestState({ eventDivision: e.target.value })}
+                      placeholder="Open / Pro / AM"
+                      className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2"
+                    />
+                  </div>
+                </div>
+
+                <div className="mt-3 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-semibold">Virtual Event Hub</div>
+                      <div className="text-xs text-white/60">Host live contest streams, link your nonprofit website, and route members into First Class Skate.</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Pill tone={contestState.liveNow ? "warn" : contestState.virtualEnabled ? "good" : "neutral"}>
+                        {contestState.liveNow ? "LIVE NOW" : contestState.virtualEnabled ? "Ready to Go Live" : "Virtual Off"}
+                      </Pill>
+                      <Pill tone={contestState.liveMembersOnly ? "warn" : "good"}>{contestState.liveMembersOnly ? "Members-only stream" : "Public stream"}</Pill>
+                    </div>
+                  </div>
+
+                  {canManageAcademy ? (
+                    <div className="mt-2 flex flex-wrap gap-2 text-xs">
+                      <label className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={!!contestState.virtualEnabled}
+                          onChange={(e) => patchContestState({ virtualEnabled: e.target.checked, liveNow: e.target.checked ? contestState.liveNow : false })}
+                        />
+                        Enable virtual contest
+                      </label>
+                      <label className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={!!contestState.liveNow}
+                          onChange={(e) => patchContestState({ liveNow: e.target.checked, virtualEnabled: e.target.checked ? true : contestState.virtualEnabled })}
+                        />
+                        Mark event live now
+                      </label>
+                      <label className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2">
+                        <input
+                          type="checkbox"
+                          checked={!!contestState.liveMembersOnly}
+                          onChange={(e) => patchContestState({ liveMembersOnly: e.target.checked })}
+                        />
+                        Restrict stream to members
+                      </label>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-white/60">Owner/Coach/Pro can configure live event settings.</div>
+                  )}
+
+                  <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <input
+                      value={contestState.liveTitle || ""}
+                      onChange={(e) => patchContestState({ liveTitle: e.target.value })}
+                      placeholder="Live event title (e.g., Jackalope Finals Live)"
+                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={contestState.liveStreamUrl || ""}
+                      onChange={(e) => patchContestState({ liveStreamUrl: e.target.value })}
+                      onBlur={(e) => patchContestState({ liveStreamUrl: normalizeExternalUrl(e.target.value) })}
+                      placeholder="Live stream URL (YouTube/Vimeo/OBS page)"
+                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={contestState.nonProfitUrl || ""}
+                      onChange={(e) => patchContestState({ nonProfitUrl: e.target.value })}
+                      onBlur={(e) => patchContestState({ nonProfitUrl: normalizeExternalUrl(e.target.value) })}
+                      placeholder="Nonprofit website URL"
+                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                    <input
+                      value={contestState.firstClassMembersUrl || ""}
+                      onChange={(e) => patchContestState({ firstClassMembersUrl: e.target.value })}
+                      onBlur={(e) => patchContestState({ firstClassMembersUrl: normalizeExternalUrl(e.target.value) })}
+                      placeholder="First Class Skate members portal URL (optional)"
+                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                    />
+                  </div>
+
+                  <div className="mt-2 flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => openContestExternalUrl(contestState.liveStreamUrl, "the live stream", { requireMemberAccess: !!contestState.liveMembersOnly })}
+                      disabled={!contestState.virtualEnabled || !isOpenableExternalUrl(normalizeExternalUrl(contestState.liveStreamUrl || "")) || (contestState.liveMembersOnly && !contestLiveHasAccess)}
+                      className="rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-xs font-semibold hover:bg-cyan-500/30 text-cyan-100 disabled:opacity-50"
+                    >
+                      <ExternalLink className="h-4 w-4 inline-block mr-1" />
+                      Open Live Stream
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openContestExternalUrl(contestState.nonProfitUrl, "the nonprofit site")}
+                      disabled={!isOpenableExternalUrl(normalizeExternalUrl(contestState.nonProfitUrl || ""))}
+                      className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                    >
+                      <ExternalLink className="h-4 w-4 inline-block mr-1" />
+                      Open Nonprofit Site
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => switchView("academy")}
+                      className="rounded-xl bg-lime-500/20 ring-1 ring-lime-400/30 px-3 py-2 text-xs font-semibold hover:bg-lime-500/30 text-lime-100"
+                    >
+                      <School className="h-4 w-4 inline-block mr-1" />
+                      Open First Class Skate
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => openContestExternalUrl(contestState.firstClassMembersUrl, "the First Class Skate portal", { requireMemberAccess: true })}
+                      disabled={!isOpenableExternalUrl(normalizeExternalUrl(contestState.firstClassMembersUrl || "")) || !contestLiveHasAccess}
+                      className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 disabled:opacity-50"
+                    >
+                      <Lock className="h-4 w-4 inline-block mr-1" />
+                      Open Members Portal
+                    </button>
+                  </div>
+
+                  {contestState.liveMembersOnly && !contestLiveHasAccess ? (
+                    <div className="mt-2 rounded-xl bg-amber-500/10 ring-1 ring-amber-400/20 px-3 py-2 text-xs text-amber-100">
+                      Members-only live event. Ask owner/coach/pro to add this login to First Class Skate members.
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="mt-3 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
@@ -8003,6 +10996,95 @@ export default function SkateTrainingPlanApp() {
                           </div>
                         </div>
 
+                        <div className="mt-3 rounded-2xl bg-white/5 ring-1 ring-white/10 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-semibold">Video Run Builder</div>
+                              <div className="text-xs text-white/60">Build a timed storyboard from uploaded/session/coach clips.</div>
+                            </div>
+                            <Pill tone="cyan">Timeline {linePlanTotalSec(run).toFixed(1)}s</Pill>
+                          </div>
+                          <div className="mt-2 grid grid-cols-1 sm:grid-cols-10 gap-2">
+                            <select
+                              value={run.lineDraftSourceKey || ""}
+                              onChange={(e) => updateContestRun(run.id, { lineDraftSourceKey: e.target.value })}
+                              className="sm:col-span-8 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                            >
+                              <option value="">Pick source clip</option>
+                              {contestRunClipOptions(run).map((opt) => (
+                                <option key={`run-opt-${run.id}-${opt.key}`} value={opt.key}>
+                                  {opt.label}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => addContestLineSegment(run.id, run.lineDraftSourceKey || "")}
+                              className="sm:col-span-2 rounded-xl bg-cyan-500/20 ring-1 ring-cyan-400/30 px-3 py-2 text-xs font-semibold text-cyan-100 hover:bg-cyan-500/30"
+                            >
+                              Add Segment
+                            </button>
+                          </div>
+                          <div className="mt-2 space-y-2">
+                            {toArray(run.linePlan).map((seg, segIdx) => {
+                              const clip = contestClipFromSource(run, seg.sourceKey);
+                              return (
+                                <div key={seg.id} className="rounded-xl bg-black/30 ring-1 ring-white/10 p-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <div className="text-xs text-white/70">#{segIdx + 1}</div>
+                                    <input
+                                      value={seg.title || ""}
+                                      onChange={(e) => updateContestLineSegment(run.id, seg.id, { title: e.target.value })}
+                                      placeholder="Segment title"
+                                      className="flex-1 min-w-[180px] rounded-lg bg-black/40 border border-white/10 px-2 py-1 text-xs"
+                                    />
+                                    <input
+                                      value={seg.startSec ?? 0}
+                                      onChange={(e) => updateContestLineSegment(run.id, seg.id, { startSec: Number(e.target.value) || 0 })}
+                                      inputMode="decimal"
+                                      placeholder="Start"
+                                      className="w-20 rounded-lg bg-black/40 border border-white/10 px-2 py-1 text-xs"
+                                    />
+                                    <input
+                                      value={seg.endSec ?? 3}
+                                      onChange={(e) => updateContestLineSegment(run.id, seg.id, { endSec: Number(e.target.value) || 0 })}
+                                      inputMode="decimal"
+                                      placeholder="End"
+                                      className="w-20 rounded-lg bg-black/40 border border-white/10 px-2 py-1 text-xs"
+                                    />
+                                    <div className="text-xs text-cyan-200">{lineSegmentDurationSec(seg).toFixed(1)}s</div>
+                                    <button type="button" onClick={() => moveContestLineSegment(run.id, seg.id, -1)} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs hover:bg-white/10">
+                                      <ChevronUp className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => moveContestLineSegment(run.id, seg.id, +1)} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs hover:bg-white/10">
+                                      <ChevronDown className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button type="button" onClick={() => removeContestLineSegment(run.id, seg.id)} className="rounded-lg bg-white/5 ring-1 ring-white/10 px-2 py-1 text-xs hover:bg-white/10">
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </div>
+                                  <div className="mt-1 text-[11px] text-white/60 truncate">
+                                    Source: {clip?.label || "Source clip missing"}{clip?.media?.name ? ` • ${clip.media.name}` : ""}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                            {!toArray(run.linePlan).length ? <div className="text-xs text-white/60">No segments yet. Add clips to build the run timeline.</div> : null}
+                          </div>
+                          <div className="mt-2 flex flex-wrap items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => startRunTimer({ ...run, durationSec: Math.max(5, Math.round(linePlanTotalSec(run) || run.durationSec || 45)) })}
+                              className="rounded-xl bg-amber-500/20 ring-1 ring-amber-400/30 px-3 py-2 text-xs font-semibold text-amber-100 hover:bg-amber-500/30"
+                            >
+                              Start Timeline Timer
+                            </button>
+                            <div className="text-xs text-white/60">
+                              Timeline uses segment durations; tune Start/End seconds to simulate full run timing.
+                            </div>
+                          </div>
+                        </div>
+
                         <div className="mt-3">
                           <label className="cursor-pointer rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10 inline-flex items-center gap-2">
                             <Upload className="h-4 w-4" /> Upload Run Media
@@ -8057,14 +11139,410 @@ export default function SkateTrainingPlanApp() {
             </motion.div>
           ) : null}
 
-          {ui.view === "team" && !isSkaterMember ? (
+          {ui.view === "academy" && roleAllowedViews.has("academy") ? (
+            <motion.div key="academy" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
+              <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
+                <div
+                  className="relative overflow-hidden rounded-3xl ring-1 p-4 sm:p-5"
+                  style={{
+                    backgroundColor: academyCardColor,
+                    color: academyTextColor,
+                    borderColor: `${academyAccentColor}66`,
+                    backgroundImage: academyBranding.bannerUrl
+                      ? `linear-gradient(135deg, rgba(2,6,23,0.85) 0%, rgba(2,6,23,0.35) 100%), url(${academyBranding.bannerUrl})`
+                      : `linear-gradient(135deg, ${academyCardColor} 0%, #020617 100%)`,
+                    backgroundSize: academyBranding.bannerUrl ? "cover" : undefined,
+                    backgroundPosition: academyBranding.bannerUrl ? "center" : undefined,
+                  }}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="text-xs tracking-widest opacity-80">LEARNING ACADEMY</div>
+                      <div className="mt-1 flex items-center gap-3">
+                        {academyBranding.logoUrl ? (
+                          <div className="h-14 w-14 overflow-hidden rounded-2xl ring-1 ring-white/20 bg-black/40">
+                            <img src={academyBranding.logoUrl} alt="Academy logo" className="h-full w-full object-cover" />
+                          </div>
+                        ) : null}
+                        <div className="min-w-0">
+                          <div className="text-xl font-extrabold truncate">{academyState.programName || "First Class Skate"}</div>
+                          {academyBranding.subtitle ? <div className="text-xs opacity-85 mt-0.5">{academyBranding.subtitle}</div> : null}
+                        </div>
+                      </div>
+                      <div className="mt-2 text-sm opacity-90">
+                        Members-only video lessons. Kiko/pro team can upload curriculum and sessions for this {participantLabelLower}.
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Pill tone={academyState.enabled ? "good" : "warn"}>{academyState.enabled ? "Program Live" : "Program Hidden"}</Pill>
+                      <Pill tone={academyState.membersOnly ? "warn" : "neutral"}>{academyState.membersOnly ? "Members Only" : "Open Access"}</Pill>
+                      <Pill tone="cyan">{toArray(academyState.courses).length} lesson(s)</Pill>
+                    </div>
+                  </div>
+                </div>
+
+                {canManageAcademy ? (
+                  <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">Program Controls</div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <label className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                        <input type="checkbox" checked={!!academyState.enabled} onChange={(e) => patchAcademyState({ enabled: e.target.checked })} />
+                        Enable program
+                      </label>
+                      <label className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                        <input type="checkbox" checked={!!academyState.membersOnly} onChange={(e) => patchAcademyState({ membersOnly: e.target.checked })} />
+                        Members-only access
+                      </label>
+                    </div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <div>
+                        <div className="text-xs text-white/60">Program Name</div>
+                        <input
+                          value={academyState.programName || ""}
+                          onChange={(e) => patchAcademyState({ programName: e.target.value })}
+                          placeholder="First Class Skate"
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div>
+                        <div className="text-xs text-white/60">Subtitle / Tagline</div>
+                        <input
+                          value={academyBranding.subtitle || ""}
+                          onChange={(e) => patchAcademyBranding({ subtitle: e.target.value })}
+                          placeholder="Train smart. Skate with purpose."
+                          className="mt-1 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                      <div className="text-xs font-semibold tracking-wide text-white/80">Brand Personalization</div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
+                        <label className="cursor-pointer rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
+                          Upload Logo
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => setAcademyBrandAsset("logoUrl", e.target.files)} />
+                        </label>
+                        <label className="cursor-pointer rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10">
+                          Upload Banner
+                          <input type="file" accept="image/*" className="hidden" onChange={(e) => setAcademyBrandAsset("bannerUrl", e.target.files)} />
+                        </label>
+                        <button
+                          type="button"
+                          onClick={() => clearAcademyBrandAsset("logoUrl")}
+                          className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                        >
+                          Clear Logo
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => clearAcademyBrandAsset("bannerUrl")}
+                          className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                        >
+                          Clear Banner
+                        </button>
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-3 gap-2">
+                        <label className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                          Accent Color
+                          <input
+                            type="color"
+                            value={academyAccentColor}
+                            onChange={(e) => patchAcademyBranding({ accentColor: e.target.value })}
+                            className="mt-1 h-9 w-full rounded-lg bg-transparent"
+                          />
+                        </label>
+                        <label className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                          Card Color
+                          <input
+                            type="color"
+                            value={academyCardColor}
+                            onChange={(e) => patchAcademyBranding({ cardColor: e.target.value })}
+                            className="mt-1 h-9 w-full rounded-lg bg-transparent"
+                          />
+                        </label>
+                        <label className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                          Text Color
+                          <input
+                            type="color"
+                            value={academyTextColor}
+                            onChange={(e) => patchAcademyBranding({ textColor: e.target.value })}
+                            className="mt-1 h-9 w-full rounded-lg bg-transparent"
+                          />
+                        </label>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                      <div className="text-xs font-semibold tracking-wide text-white/80">Fee-Based System</div>
+                      <label className="mt-2 inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                        <input type="checkbox" checked={!!academyFees.enabled} onChange={(e) => patchAcademyFees({ enabled: e.target.checked })} />
+                        Enable paid memberships
+                      </label>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+                        <select
+                          value={normalizeCurrencyCode(academyFees.currency, "USD")}
+                          onChange={(e) => patchAcademyFees({ currency: normalizeCurrencyCode(e.target.value, "USD") })}
+                          className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        >
+                          {["USD", "CAD", "MXN", "EUR", "GBP", "JPY", "KRW", "PHP", "THB", "AUD", "NZD"].map((code) => (
+                            <option key={`ac-fee-currency-${code}`} value={code}>
+                              {code}
+                            </option>
+                          ))}
+                        </select>
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={String(academyFees.monthlyPrice ?? 0)}
+                          onChange={(e) => patchAcademyFees({ monthlyPrice: normalizeMoneyAmount(e.target.value, 0) })}
+                          placeholder="Monthly"
+                          className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={String(academyFees.yearlyPrice ?? 0)}
+                          onChange={(e) => patchAcademyFees({ yearlyPrice: normalizeMoneyAmount(e.target.value, 0) })}
+                          placeholder="Yearly"
+                          className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={String(academyFees.dropInPrice ?? 0)}
+                          onChange={(e) => patchAcademyFees({ dropInPrice: normalizeMoneyAmount(e.target.value, 0) })}
+                          placeholder="Drop-in"
+                          className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                        <input
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          value={String(academyFees.privateLessonPrice ?? 0)}
+                          onChange={(e) => patchAcademyFees({ privateLessonPrice: normalizeMoneyAmount(e.target.value, 0) })}
+                          placeholder="Private Lesson"
+                          className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                      </div>
+                      <div className="mt-2 grid grid-cols-1 sm:grid-cols-5 gap-2">
+                        <input
+                          value={academyFees.paymentUrl || ""}
+                          onChange={(e) => patchAcademyFees({ paymentUrl: e.target.value })}
+                          onBlur={(e) => patchAcademyFees({ paymentUrl: normalizeExternalUrl(e.target.value) })}
+                          placeholder="Payment URL (PayPal/Stripe checkout)"
+                          className="sm:col-span-4 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                        />
+                        <button
+                          type="button"
+                          onClick={openAcademyPaymentLink}
+                          disabled={!isOpenableExternalUrl(normalizeExternalUrl(academyFees.paymentUrl || ""))}
+                          className="rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30 px-3 py-2 text-xs font-semibold hover:bg-emerald-500/30 text-emerald-100 disabled:opacity-50"
+                        >
+                          <ExternalLink className="h-4 w-4 inline-block mr-1" />
+                          Open Pay Link
+                        </button>
+                      </div>
+                      <textarea
+                        rows={2}
+                        value={academyFees.notes || ""}
+                        onChange={(e) => patchAcademyFees({ notes: e.target.value })}
+                        placeholder="Fee notes (billing cycle, refund terms, family discounts)."
+                        className="mt-2 w-full rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      />
+                      <div className="mt-2 text-[11px] text-white/60">
+                        Pricing preview: Monthly {formatAcademyPrice(academyFees.monthlyPrice)} • Yearly {formatAcademyPrice(academyFees.yearlyPrice)} • Drop-in{" "}
+                        {formatAcademyPrice(academyFees.dropInPrice)} • Private {formatAcademyPrice(academyFees.privateLessonPrice)}
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <div className="text-xs text-white/60">Member Access</div>
+                      <div className="mt-1 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
+                        {members.map((m) => {
+                          const checked = toArray(academyState.memberIds).includes(String(m.id));
+                          return (
+                            <label key={`ac-m-${m.id}`} className="inline-flex items-center gap-2 rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs">
+                              <input type="checkbox" checked={checked} onChange={(e) => toggleAcademyMember(m.id, e.target.checked)} />
+                              {m.name} • {roleDisplayLabel(m.role)}
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
+                {!academyState.enabled ? (
+                  <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4 text-sm text-white/70">
+                    This academy is currently hidden. Ask owner/coach/pro to enable it.
+                  </div>
+                ) : academyHasAccess ? (
+                  <>
+                    {academyFees.enabled ? (
+                      <div className="mt-4 rounded-3xl ring-1 p-4" style={{ borderColor: `${academyAccentColor}55`, backgroundColor: `${academyCardColor}66` }}>
+                        <div className="flex flex-wrap items-start justify-between gap-2">
+                          <div>
+                            <div className="text-sm font-semibold">Membership & Fees</div>
+                            <div className="text-xs text-white/70 mt-1">
+                              Monthly {formatAcademyPrice(academyFees.monthlyPrice)} • Yearly {formatAcademyPrice(academyFees.yearlyPrice)} • Drop-in{" "}
+                              {formatAcademyPrice(academyFees.dropInPrice)} • Private {formatAcademyPrice(academyFees.privateLessonPrice)}
+                            </div>
+                            {academyFees.notes ? <div className="text-xs text-white/60 mt-2">{academyFees.notes}</div> : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={openAcademyPaymentLink}
+                            disabled={!isOpenableExternalUrl(normalizeExternalUrl(academyFees.paymentUrl || ""))}
+                            className="rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30 px-3 py-2 text-xs font-semibold hover:bg-emerald-500/30 text-emerald-100 disabled:opacity-50"
+                          >
+                            <ExternalLink className="h-4 w-4 inline-block mr-1" />
+                            Join / Pay
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    {canManageAcademy ? (
+                      <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                        <div className="text-sm font-semibold">Add Lesson</div>
+                        <div className="mt-2 grid grid-cols-1 sm:grid-cols-12 gap-2">
+                          <input
+                            value={academyDraft.title}
+                            onChange={(e) => setAcademyDraft((prev) => ({ ...prev, title: e.target.value }))}
+                            placeholder="Lesson title"
+                            className="sm:col-span-4 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                          />
+                          <input
+                            value={academyDraft.level}
+                            onChange={(e) => setAcademyDraft((prev) => ({ ...prev, level: e.target.value }))}
+                            placeholder="Level (Beginner/Intermediate/Advanced)"
+                            className="sm:col-span-3 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                          />
+                          <input
+                            value={academyDraft.summary}
+                            onChange={(e) => setAcademyDraft((prev) => ({ ...prev, summary: e.target.value }))}
+                            placeholder="Lesson summary"
+                            className="sm:col-span-5 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                          />
+                        </div>
+                        <div className="mt-3">
+                          <label className="cursor-pointer rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90 inline-flex items-center gap-2">
+                            <Upload className="h-4 w-4" /> Upload Lesson Media
+                            <input type="file" multiple accept="image/*,video/*" className="hidden" onChange={(e) => addAcademyCourseFromFiles(e.target.files)} />
+                          </label>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-4 space-y-3">
+                      {toArray(academyState.courses).map((course) => (
+                        <div key={course.id} className="rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                          <div className="flex items-start justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-bold">{course.title}</div>
+                              <div className="text-xs text-white/60">{course.level || "All Levels"}{course.summary ? ` • ${course.summary}` : ""}</div>
+                              <div className="text-[11px] text-white/50 mt-1">By {course.createdBy || "Coach/Pro"} • {formatDateTime(course.createdAt)}</div>
+                            </div>
+                            {canManageAcademy ? (
+                              <button type="button" onClick={() => removeAcademyCourse(course.id)} className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs hover:bg-white/10">
+                                <Trash2 className="h-4 w-4" />
+                              </button>
+                            ) : null}
+                          </div>
+                          {(course.media || []).length ? (
+                            <div className="mt-3 grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+                              {(course.media || []).map((m) => (
+                                <div key={m.id} className="relative rounded-xl overflow-hidden bg-black ring-1 ring-white/10">
+                                  <div className="aspect-square">
+                                    {m.type?.startsWith("video/") ? (
+                                      <video src={mediaSrc(m)} className="h-full w-full object-cover" controls playsInline />
+                                    ) : (
+                                      <img src={mediaSrc(m)} alt={m.name} className="h-full w-full object-cover" />
+                                    )}
+                                  </div>
+                                  {canManageAcademy ? (
+                                    <button
+                                      type="button"
+                                      onClick={() => removeAcademyMedia(course.id, m.id)}
+                                      className="absolute top-1 right-1 rounded-full bg-black/70 ring-1 ring-white/10 p-1"
+                                      title="Remove media"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  ) : null}
+                                </div>
+                              ))}
+                            </div>
+                          ) : (
+                            <div className="mt-2 text-xs text-white/60">No media attached yet.</div>
+                          )}
+                        </div>
+                      ))}
+                      {!toArray(academyState.courses).length ? (
+                        <div className="rounded-3xl bg-black/30 ring-1 ring-white/10 p-4 text-sm text-white/70">
+                          No lessons published yet.
+                        </div>
+                      ) : null}
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 rounded-3xl bg-black/30 ring-1 ring-white/10 p-4">
+                    <div className="inline-flex items-center gap-2 rounded-xl bg-amber-500/15 ring-1 ring-amber-500/20 px-3 py-2 text-amber-100">
+                      <Lock className="h-4 w-4" /> Members-only content
+                    </div>
+                    <div className="mt-2 text-sm text-white/70">
+                      Access is restricted. Ask owner/coach/pro to add your login to academy members.
+                    </div>
+                    {academyFees.enabled ? (
+                      <div className="mt-3 rounded-2xl bg-black/30 ring-1 ring-white/10 p-3">
+                        <div className="text-xs text-white/80">
+                          Pricing: Monthly {formatAcademyPrice(academyFees.monthlyPrice)} • Yearly {formatAcademyPrice(academyFees.yearlyPrice)} • Drop-in{" "}
+                          {formatAcademyPrice(academyFees.dropInPrice)}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={openAcademyPaymentLink}
+                          disabled={!isOpenableExternalUrl(normalizeExternalUrl(academyFees.paymentUrl || ""))}
+                          className="mt-2 rounded-xl bg-emerald-500/20 ring-1 ring-emerald-400/30 px-3 py-2 text-xs font-semibold hover:bg-emerald-500/30 text-emerald-100 disabled:opacity-50"
+                        >
+                          <ExternalLink className="h-4 w-4 inline-block mr-1" />
+                          Membership Payment
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          ) : null}
+
+          {ui.view === "team" && roleAllowedViews.has("team") ? (
             <motion.div key="team" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className="rounded-3xl bg-white/5 ring-1 ring-white/10 p-5 sm:p-7">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="text-xs tracking-widest text-white/50">ACCESS</div>
-                    <div className="mt-1 text-xl font-extrabold">Coach + Dad</div>
+                    <div className="mt-1 text-xl font-extrabold">Coach + Dad + Pro</div>
                     <div className="mt-2 text-sm text-white/60">Owner can manage team + profiles.</div>
+                  </div>
+                </div>
+
+                <div className="mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="text-sm font-semibold">Program Profile</div>
+                    <Pill tone={isHighSchoolProgram ? "warn" : programProfile.enabled ? "good" : "neutral"}>
+                      {programProfile.enabled ? (isHighSchoolProgram ? "High School" : programTypeLabel) : "Family Mode"}
+                    </Pill>
+                  </div>
+                  <div className="mt-2 text-xs text-white/65">
+                    {programProfile.enabled
+                      ? `${programProfile.schoolName || "School not set"}${programProfile.teamName ? ` • ${programProfile.teamName}` : ""} • ${programLevelLabel}${
+                          programProfile.cityState ? ` • ${programProfile.cityState}` : ""
+                        }`
+                      : "Enable School + Team Mode in Settings to set a school/team profile."}
                   </div>
                 </div>
 
@@ -8080,7 +11558,7 @@ export default function SkateTrainingPlanApp() {
                         onClick={() => {
                           const name = prompt("Member name:");
                           if (!name) return;
-                          const role = normalizeMemberRole(prompt(`Role (owner/coach/dad/skater)${skaterRoleHint}:`, "dad"), "dad");
+                          const role = normalizeMemberRole(prompt(`Role (owner/coach/dad/proskater/media/skater)${skaterRoleHint}:`, "dad"), "dad");
                           const pin = sanitizePin(prompt("Set PIN (required, exactly 4 digits):", "") || "");
                           if (pin.length !== 4) {
                             alert("PIN must be exactly 4 digits.");
@@ -8127,7 +11605,7 @@ export default function SkateTrainingPlanApp() {
                               <button
                                 type="button"
                                 onClick={() => {
-                                  const nextRoleInput = prompt(`Role (owner/coach/dad/skater)${skaterRoleHint}:`, m.role);
+                                  const nextRoleInput = prompt(`Role (owner/coach/dad/proskater/media/skater)${skaterRoleHint}:`, m.role);
                                   if (nextRoleInput == null) return;
                                   const nextRole = normalizeMemberRole(nextRoleInput, m.role || "dad");
                                   if (!nextRole) return;
@@ -8295,7 +11773,7 @@ export default function SkateTrainingPlanApp() {
                             <div className="text-xs text-white/60">
                               <span className="font-bold text-white">{m.by || ""}</span> • {roleDisplayLabel(m.role)}
                             </div>
-                            <div className="text-[11px] text-white/40">{new Date(m.at).toLocaleString()}</div>
+                            <div className="text-[11px] text-white/40">{formatDateTime(m.at)}</div>
                           </div>
                           <div className="mt-1 text-sm text-white/80 whitespace-pre-wrap">{m.text}</div>
                         </div>
@@ -8333,7 +11811,9 @@ export default function SkateTrainingPlanApp() {
                     <div className="text-xs tracking-widest text-white/50">SKATEBOARDING ONLY</div>
                     <div className="mt-1 text-xl font-extrabold">Pro Feedback • {activeSkater?.name || participantLabel}</div>
                     <div className="mt-2 text-sm text-white/60">
-                      Submit clip links and questions for a paid pro review. Toggle this section anytime in Settings.
+                      {isProSkaterMember
+                        ? "Review and respond to requests across all skaters from your pro login."
+                        : "Submit clip links and questions for a paid pro review. Family payments go to owner first; pro payout is weekly."}
                     </div>
                   </div>
                   <Pill tone="warn">
@@ -8343,76 +11823,101 @@ export default function SkateTrainingPlanApp() {
 
                 <div className="mt-4 rounded-2xl bg-white/5 ring-1 ring-white/10 p-4">
                   <div className="text-xs text-white/70">{String(proFeedback.instructions || "").trim() || "Paid pro review requests for skateboarding."}</div>
-                  {isOpenableExternalUrl(proFeedback.paymentUrl) ? (
+                  {isOpenableExternalUrl(proFeedbackDefaultPayment.url) ? (
                     <a
-                      href={proFeedback.paymentUrl}
+                      href={proFeedbackDefaultPayment.url}
                       target="_blank"
                       rel="noreferrer"
                       className="mt-3 inline-flex items-center gap-2 rounded-xl bg-white text-black px-3 py-2 text-xs font-bold hover:bg-white/90"
                     >
                       <ExternalLink className="h-3.5 w-3.5" />
-                      Open Payment Link
+                      {proFeedbackDefaultPayment.provider === "paypal" ? "Open PayPal" : "Open Payment Link"}
                     </a>
                   ) : null}
                 </div>
 
-                <div className="mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
-                  <div className="text-sm font-semibold">New Request</div>
-                  <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
-                    <input
-                      value={proFeedbackDraft.title}
-                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, title: e.target.value }))}
-                      placeholder="Request title (e.g., Frontside Air)"
-                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                    />
-                    <select
-                      value={proFeedbackDraft.preferredResponse}
-                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, preferredResponse: e.target.value }))}
-                      className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                    >
-                      <option value="Video breakdown">Video breakdown</option>
-                      <option value="Written notes">Written notes</option>
-                      <option value="Voice note">Voice note</option>
-                    </select>
-                    <input
-                      value={proFeedbackDraft.clipUrl}
-                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, clipUrl: e.target.value }))}
-                      placeholder="Optional clip URL"
-                      className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                    />
-                    <textarea
-                      value={proFeedbackDraft.question}
-                      onChange={(e) => setProFeedbackDraft((p) => ({ ...p, question: e.target.value }))}
-                      rows={3}
-                      placeholder="What should the pro review?"
-                      className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
-                    />
+                {!isProSkaterMember ? (
+                  <div className="mt-4 rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
+                    <div className="text-sm font-semibold">New Request</div>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <input
+                        value={proFeedbackDraft.title}
+                        onChange={(e) => setProFeedbackDraft((p) => ({ ...p, title: e.target.value }))}
+                        placeholder="Request title (e.g., Frontside Air)"
+                        className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      />
+                      <select
+                        value={proFeedbackDraft.preferredResponse}
+                        onChange={(e) => setProFeedbackDraft((p) => ({ ...p, preferredResponse: e.target.value }))}
+                        className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      >
+                        <option value="Video breakdown">Video breakdown</option>
+                        <option value="Written notes">Written notes</option>
+                        <option value="Voice note">Voice note</option>
+                      </select>
+                      <input
+                        value={proFeedbackDraft.clipUrl}
+                        onChange={(e) => setProFeedbackDraft((p) => ({ ...p, clipUrl: e.target.value }))}
+                        placeholder="Optional clip URL"
+                        className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      />
+                      <textarea
+                        value={proFeedbackDraft.question}
+                        onChange={(e) => setProFeedbackDraft((p) => ({ ...p, question: e.target.value }))}
+                        rows={3}
+                        placeholder="What should the pro review?"
+                        className="sm:col-span-2 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div className="mt-3 flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={submitProFeedbackRequest}
+                        className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"
+                      >
+                        Submit Paid Request
+                      </button>
+                      <div className="text-xs text-white/60">
+                        Charge ${proFeedbackPriceUsd}: ${proFeedbackOwnerShareUsd} owner / ${proFeedbackProShareUsd} pro • Payout {proFeedbackWeeklyPayoutDay}
+                      </div>
+                    </div>
                   </div>
-                  <div className="mt-3 flex items-center gap-2">
-                    <button
-                      type="button"
-                      onClick={submitProFeedbackRequest}
-                      className="rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"
-                    >
-                      Submit Paid Request
-                    </button>
-                    <div className="text-xs text-white/60">Charge: ${proFeedbackPriceUsd} per request</div>
-                  </div>
-                </div>
+                ) : null}
 
                 <div className="mt-4 space-y-3">
-                  {activeProFeedbackRequests.length ? (
-                    activeProFeedbackRequests.map((item) => (
-                      <div key={item.id} className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
+                  {visibleProFeedbackRequests.length ? (
+                    visibleProFeedbackRequests.map((item) => {
+                      const requestChargeUsd = Math.max(0, Number(item.chargeUsd) || 0);
+                      const requestOwnerShareUsd = Math.max(
+                        0,
+                        Math.min(
+                          requestChargeUsd,
+                          Number.isFinite(Number(item.ownerShareUsd)) ? Number(item.ownerShareUsd) : proFeedbackOwnerShareUsd
+                        )
+                      );
+                      const requestProShareUsd = Math.max(0, Number((requestChargeUsd - requestOwnerShareUsd).toFixed(2)));
+                      const requestPaymentDetails = isOpenableExternalUrl(item.paymentUrl)
+                        ? { url: item.paymentUrl, provider: item.paymentProvider === "paypal" ? "paypal" : /paypal/i.test(item.paymentUrl || "") ? "paypal" : "external" }
+                        : buildProFeedbackPaymentDetails(
+                            proFeedback,
+                            requestChargeUsd || proFeedbackPriceUsd,
+                            `${item.skaterName || activeSkater?.name || "Skater"} - ${item.title || "Pro Feedback"}`
+                          );
+                      return (
+                        <div key={item.id} className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-4">
                         <div className="flex flex-wrap items-start justify-between gap-2">
                           <div>
                             <div className="text-sm font-bold">{item.title || "Feedback Request"}</div>
                             <div className="text-xs text-white/60">
-                              {item.skaterName || activeSkater?.name || participantLabel} • {new Date(item.createdAt).toLocaleString()} • by {item.requestedBy || "Team"}
+                              {item.skaterName || skaters.find((s) => s.id === item.skaterId)?.name || activeSkater?.name || participantLabel} • {formatDateTime(item.createdAt)} • by{" "}
+                              {item.requestedBy || "Team"}
                             </div>
                           </div>
                           <div className="flex gap-2">
                             <Pill tone={item.paymentStatus === "paid" ? "good" : "warn"}>{item.paymentStatus === "paid" ? "Paid" : "Unpaid"}</Pill>
+                            <Pill tone={String(item.payoutStatus || "pending") === "sent" ? "good" : "neutral"}>
+                              {String(item.payoutStatus || "pending") === "sent" ? "Pro Paid" : "Pro Payout Pending"}
+                            </Pill>
                             <Pill tone={item.status === "delivered" || item.status === "closed" ? "good" : item.status === "in-review" ? "cyan" : "neutral"}>
                               {String(item.status || "pending")}
                             </Pill>
@@ -8425,21 +11930,43 @@ export default function SkateTrainingPlanApp() {
                             Open Clip
                           </a>
                         ) : null}
-                        <div className="mt-2 text-xs text-white/60">Preferred response: {item.preferredResponse || "Any"} • Charge ${Math.max(0, Number(item.chargeUsd) || 0)}</div>
+                        {isOpenableExternalUrl(requestPaymentDetails.url) ? (
+                          <a
+                            href={requestPaymentDetails.url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="mt-2 ml-3 inline-flex items-center gap-1 text-xs text-emerald-200 hover:text-emerald-100"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5" />
+                            {requestPaymentDetails.provider === "paypal" ? "Pay with PayPal" : "Open Payment Link"}
+                          </a>
+                        ) : null}
+                        <div className="mt-2 text-xs text-white/60">
+                          Preferred response: {item.preferredResponse || "Any"} • Charge ${requestChargeUsd} • Split ${requestOwnerShareUsd} owner / ${requestProShareUsd} pro
+                        </div>
+                        {String(item.payoutStatus || "pending") === "sent" ? (
+                          <div className="mt-1 text-[11px] text-emerald-200">
+                            Pro payout sent {item.payoutSentAt ? formatDateTime(item.payoutSentAt) : ""} {item.payoutSentByName ? `by ${item.payoutSentByName}` : ""}
+                          </div>
+                        ) : (
+                          <div className="mt-1 text-[11px] text-white/50">Pro payout scheduled for weekly batch ({proFeedbackWeeklyPayoutDay}).</div>
+                        )}
 
                         {canManageProFeedback ? (
                           <div className="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-2">
-                            <select
-                              value={item.paymentStatus || "unpaid"}
-                              onChange={(e) => patchProFeedbackRequest(item.id, { paymentStatus: e.target.value })}
-                              className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
-                            >
-                              <option value="unpaid">Unpaid</option>
-                              <option value="paid">Paid</option>
-                            </select>
+                            {canManageProBilling ? (
+                              <select
+                                value={item.paymentStatus || "unpaid"}
+                                onChange={(e) => patchProFeedbackRequest(item.id, { paymentStatus: e.target.value }, item.skaterId)}
+                                className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                              >
+                                <option value="unpaid">Unpaid</option>
+                                <option value="paid">Paid</option>
+                              </select>
+                            ) : null}
                             <select
                               value={item.status || "pending"}
-                              onChange={(e) => patchProFeedbackRequest(item.id, { status: e.target.value })}
+                              onChange={(e) => patchProFeedbackRequest(item.id, { status: e.target.value }, item.skaterId)}
                               className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
                             >
                               <option value="pending">pending</option>
@@ -8447,35 +11974,53 @@ export default function SkateTrainingPlanApp() {
                               <option value="delivered">delivered</option>
                               <option value="closed">closed</option>
                             </select>
-                            <button
-                              type="button"
-                              onClick={() => removeProFeedbackRequest(item.id)}
-                              className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
-                            >
-                              Delete
-                            </button>
+                            {canManageProPayout ? (
+                              <select
+                                value={String(item.payoutStatus || "pending") === "sent" ? "sent" : "pending"}
+                                onChange={(e) => patchProFeedbackRequest(item.id, { payoutStatus: e.target.value }, item.skaterId)}
+                                className="rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
+                              >
+                                <option value="pending">payout pending</option>
+                                <option value="sent">payout sent</option>
+                              </select>
+                            ) : null}
+                            {canDeleteProFeedbackRequest ? (
+                              <button
+                                type="button"
+                                onClick={() => removeProFeedbackRequest(item.id, item.skaterId)}
+                                className="rounded-xl bg-white/5 ring-1 ring-white/10 px-3 py-2 text-xs font-semibold hover:bg-white/10"
+                              >
+                                Delete
+                              </button>
+                            ) : null}
                             <textarea
                               value={String(item.proReply || "")}
-                              onChange={(e) => patchProFeedbackRequest(item.id, { proReply: e.target.value })}
+                              onChange={(e) => patchProFeedbackRequest(item.id, { proReply: e.target.value }, item.skaterId)}
                               placeholder="Pro response / notes"
                               rows={2}
                               className="sm:col-span-3 rounded-xl bg-black/40 border border-white/10 px-3 py-2 text-xs"
                             />
                           </div>
                         ) : item.proReply ? (
-                          <div className="mt-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-xs whitespace-pre-wrap">{item.proReply}</div>
+                          <div className="mt-3 rounded-xl bg-white/5 ring-1 ring-white/10 p-3 text-xs whitespace-pre-wrap">
+                            {item.proReply}
+                            {item.reviewedByName ? <div className="mt-2 text-[11px] text-white/60">Reviewed by {item.reviewedByName}</div> : null}
+                          </div>
                         ) : null}
-                      </div>
-                    ))
+                        </div>
+                      );
+                    })
                   ) : (
-                    <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-4 text-sm text-white/60">No pro feedback requests yet.</div>
+                    <div className="rounded-2xl bg-black/30 ring-1 ring-white/10 p-4 text-sm text-white/60">
+                      {isProSkaterMember ? "No pro feedback requests are queued yet." : "No pro feedback requests yet."}
+                    </div>
                   )}
                 </div>
               </div>
             </motion.div>
           ) : null}
 
-          {ui.view === "settings" && !isSkaterMember ? (
+          {ui.view === "settings" && roleAllowedViews.has("settings") ? (
             <motion.div key="settings" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -8 }} className="mt-4">
               <div className={settingsPanelClass}>
                 <div>
@@ -8485,15 +12030,237 @@ export default function SkateTrainingPlanApp() {
 
                 <div className="mt-4 grid grid-cols-1 lg:grid-cols-2 gap-3">
                   <div className={settingsCardClass}>
-                    <div className="text-sm font-semibold">Theme</div>
-                    <div className={settingsMutedTextClass}>Switch between dark and light mode.</div>
+                    <div className="text-sm font-semibold">{tx("settings.theme.title", "Theme")}</div>
+                    <div className={settingsMutedTextClass}>{tx("settings.theme.detail", "Switch between dark and light mode.")}</div>
                     <button
                       type="button"
                       onClick={toggleTheme}
                       className="mt-3 rounded-2xl bg-white text-black px-4 py-2 text-sm font-bold hover:bg-white/90"
                     >
-                      {isLightMode ? "Use Dark Mode" : "Use Light Mode"}
+                      {isLightMode ? tx("settings.theme.dark", "Use Dark Mode") : tx("settings.theme.light", "Use Light Mode")}
                     </button>
+                  </div>
+
+                  <div className={settingsCardClass}>
+                    <div className="text-sm font-semibold">{tx("settings.language.title", "Language")}</div>
+                    <div className={settingsMutedTextClass}>{tx("settings.language.detail", "Set app language for labels and timestamps.")}</div>
+                    <div className="mt-3">
+                      <label className={settingsMutedTextClass}>{tx("settings.language.label", "App language")}</label>
+                      <select
+                        value={uiLanguagePref}
+                        onChange={(e) => setLanguagePreference(e.target.value)}
+                        className={
+                          "mt-2 w-full rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode ? "bg-white border-slate-300 text-slate-900" : "bg-black/40 border-white/10 text-white")
+                        }
+                      >
+                        {UI_LANGUAGE_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="mt-3">
+                      <div className={settingsMutedTextClass}>Custom translation overrides (JSON for current language: {uiLanguage})</div>
+                      <textarea
+                        value={languageOverrideDraft}
+                        onChange={(e) => setLanguageOverrideDraft(e.target.value)}
+                        rows={8}
+                        className={
+                          "mt-2 w-full rounded-xl border px-3 py-2 text-xs font-mono " +
+                          (isLightMode ? "bg-white border-slate-300 text-slate-900" : "bg-black/40 border-white/10 text-white")
+                        }
+                      />
+                      <div className="mt-2 text-[11px] text-white/60">
+                        Example keys: <code>tabs.log</code>, <code>tabs.plans</code>, <code>settings.theme.title</code>
+                      </div>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <button type="button" onClick={saveLanguageOverrideDraft} className={settingsGhostBtnClass}>
+                          Save Overrides
+                        </button>
+                        <button type="button" onClick={clearLanguageOverrideDraft} className={settingsGhostBtnClass}>
+                          Clear Overrides
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className={settingsCardClass}>
+                    <div className="text-sm font-semibold">Personalize Background</div>
+                    <div className={settingsMutedTextClass}>Set a custom background per login profile. Great for athletes, parents, and coaches sharing one device.</div>
+                    <div className="mt-3 grid grid-cols-2 sm:grid-cols-5 gap-2">
+                      {BACKGROUND_PRESETS.map((preset) => (
+                        <button
+                          key={preset.key}
+                          type="button"
+                          onClick={() => applyBackgroundPreset(preset.key)}
+                          className={`rounded-xl border px-2 py-2 text-[11px] font-semibold ${
+                            activeBackgroundPref.mode === "preset" && activeBackgroundPref.presetKey === preset.key
+                              ? isLightMode
+                                ? "border-slate-900 bg-slate-900 text-white"
+                                : "border-white bg-white text-black"
+                              : isLightMode
+                              ? "border-slate-300 bg-white text-slate-700 hover:bg-slate-100"
+                              : "border-white/10 bg-black/40 text-white/90 hover:bg-white/10"
+                          }`}
+                        >
+                          {preset.label}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <label className={`cursor-pointer ${settingsGhostBtnClass}`}>
+                        <Upload className="h-4 w-4 inline-block mr-2" /> Upload Image
+                        <input type="file" accept="image/*" className="hidden" onChange={(e) => uploadBackgroundImage(e.target.files?.[0])} />
+                      </label>
+                      <button type="button" onClick={clearBackgroundPersonalization} className={settingsGhostBtnClass}>
+                        Reset Default
+                      </button>
+                    </div>
+                    <div className="mt-3">
+                      <div className={settingsMutedTextClass}>Image layout</div>
+                      <div className="mt-2 inline-flex rounded-xl p-1 ring-1 ring-white/10 bg-black/20">
+                        <button
+                          type="button"
+                          onClick={() => setBackgroundImageLayout("fit")}
+                          disabled={!activeBackgroundPref.imageUrl}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                            backgroundImageLayout === "fit"
+                              ? isLightMode
+                                ? "bg-slate-900 text-white"
+                                : "bg-white text-black"
+                              : isLightMode
+                              ? "text-slate-700 hover:bg-white/80"
+                              : "text-white/80 hover:bg-white/10"
+                          } disabled:opacity-40`}
+                        >
+                          Fit Screen
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setBackgroundImageLayout("tile")}
+                          disabled={!activeBackgroundPref.imageUrl}
+                          className={`rounded-lg px-3 py-1.5 text-xs font-semibold ${
+                            backgroundImageLayout === "tile"
+                              ? isLightMode
+                                ? "bg-slate-900 text-white"
+                                : "bg-white text-black"
+                              : isLightMode
+                              ? "text-slate-700 hover:bg-white/80"
+                              : "text-white/80 hover:bg-white/10"
+                          } disabled:opacity-40`}
+                        >
+                          Tile
+                        </button>
+                      </div>
+                    </div>
+                    <div className={settingsMutedTextClass}>
+                      Current profile: {activeMember?.name || "User"} • Mode:{" "}
+                      {activeBackgroundPref.mode === "image" ? "Custom Image" : activeBackgroundPref.mode === "preset" ? "Preset" : "Default"}
+                    </div>
+                    <div className={settingsMutedTextClass}>Uploaded images are auto-resized and can display as fit-screen or tiled wallpaper.</div>
+                  </div>
+
+                  <div className={settingsCardClass}>
+                    <div className="text-sm font-semibold">School + Team Mode</div>
+                    <div className={settingsMutedTextClass}>Enable school/team operations and mark programs like High School for recruiting workflows.</div>
+                    <label className="mt-3 inline-flex items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={!!programProfile.enabled}
+                        onChange={(e) => updateProgramProfile({ enabled: e.target.checked })}
+                      />
+                      Enable school/team profile
+                    </label>
+                    <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      <select
+                        value={programProfile.programType}
+                        onChange={(e) => updateProgramProfile({ programType: e.target.value })}
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode ? "bg-white border-slate-300 text-slate-900" : "bg-black/40 border-white/10 text-white")
+                        }
+                      >
+                        <option value="family">Family</option>
+                        <option value="school-team">School Team</option>
+                        <option value="club-team">Club Team</option>
+                      </select>
+                      <select
+                        value={programProfile.level}
+                        onChange={(e) => updateProgramProfile({ level: e.target.value })}
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode ? "bg-white border-slate-300 text-slate-900" : "bg-black/40 border-white/10 text-white")
+                        }
+                      >
+                        <option value="youth">Youth</option>
+                        <option value="middle-school">Middle School</option>
+                        <option value="high-school">High School</option>
+                        <option value="college">College</option>
+                        <option value="adult">Adult</option>
+                      </select>
+                      <input
+                        value={programProfile.schoolName}
+                        onChange={(e) => updateProgramProfile({ schoolName: e.target.value })}
+                        placeholder="School name"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <input
+                        value={programProfile.teamName}
+                        onChange={(e) => updateProgramProfile({ teamName: e.target.value })}
+                        placeholder="Team name"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <input
+                        value={programProfile.cityState}
+                        onChange={(e) => updateProgramProfile({ cityState: e.target.value })}
+                        placeholder="City, State"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <input
+                        value={programProfile.season}
+                        onChange={(e) => updateProgramProfile({ season: e.target.value })}
+                        placeholder="Season (e.g., Fall 2026)"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                    </div>
+                    <textarea
+                      value={programProfile.notes}
+                      onChange={(e) => updateProgramProfile({ notes: e.target.value })}
+                      rows={2}
+                      placeholder="Program notes (division, district, schedule)."
+                      className={
+                        "mt-2 w-full rounded-xl border px-3 py-2 text-sm " +
+                        (isLightMode
+                          ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                          : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                      }
+                    />
+                    <div className={settingsMutedTextClass}>
+                      Current profile: {programProfile.enabled ? `${programTypeLabel} • ${programLevelLabel}` : "Family Mode"}{" "}
+                      {isHighSchoolProgram ? "• High School marker ON" : ""}
+                    </div>
                   </div>
 
                   <div className={settingsCardClass}>
@@ -8513,7 +12280,7 @@ export default function SkateTrainingPlanApp() {
                   <div className={settingsCardClass}>
                     <div className="text-sm font-semibold">Pro Feedback (Skateboarding)</div>
                     <div className={settingsMutedTextClass}>
-                      Toggle a paid pro-review section. It only appears when the active sport is skateboarding.
+                      Toggle paid pro-review, collect to owner PayPal, and track weekly pro payouts.
                     </div>
                     <label className="mt-3 inline-flex items-center gap-2 text-sm">
                       <input
@@ -8538,10 +12305,61 @@ export default function SkateTrainingPlanApp() {
                         }
                       />
                       <input
+                        type="number"
+                        min="0"
+                        value={String(proFeedbackOwnerShareUsd)}
+                        onChange={(e) => updateProFeedback({ ownerShareUsd: Math.max(0, Number(e.target.value) || 0) })}
+                        placeholder="Owner share (USD)"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <select
+                        value={proFeedbackWeeklyPayoutDay}
+                        onChange={(e) => updateProFeedback({ weeklyPayoutDay: normalizeWeekday(e.target.value, proFeedbackWeeklyPayoutDay) })}
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode ? "bg-white border-slate-300 text-slate-900" : "bg-black/40 border-white/10 text-white")
+                        }
+                      >
+                        {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"].map((day) => (
+                          <option key={day} value={day}>
+                            {day}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        value={String(proFeedback.paypalMeUrl || "")}
+                        onChange={(e) => updateProFeedback({ paypalMeUrl: e.target.value })}
+                        onBlur={() => updateProFeedback({ paypalMeUrl: normalizeExternalUrl(proFeedback.paypalMeUrl || "") })}
+                        placeholder="PayPal.me URL (recommended)"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <input
+                        type="email"
+                        value={String(proFeedback.paypalEmail || "")}
+                        onChange={(e) => updateProFeedback({ paypalEmail: String(e.target.value || "").trim() })}
+                        placeholder="PayPal email (optional fallback)"
+                        className={
+                          "rounded-xl border px-3 py-2 text-sm " +
+                          (isLightMode
+                            ? "bg-white border-slate-300 text-slate-900 placeholder:text-slate-400"
+                            : "bg-black/40 border-white/10 text-white placeholder:text-white/40")
+                        }
+                      />
+                      <input
                         value={String(proFeedback.paymentUrl || "")}
                         onChange={(e) => updateProFeedback({ paymentUrl: e.target.value })}
                         onBlur={() => updateProFeedback({ paymentUrl: normalizeExternalUrl(proFeedback.paymentUrl || "") })}
-                        placeholder="Optional payment link (Stripe, etc.)"
+                        placeholder="Fallback payment link (optional)"
                         className={
                           "rounded-xl border px-3 py-2 text-sm " +
                           (isLightMode
@@ -8563,7 +12381,11 @@ export default function SkateTrainingPlanApp() {
                       }
                     />
                     <div className={settingsMutedTextClass}>
-                      Current state: {proFeedbackEnabled ? "ON" : "OFF"} • Charge: ${proFeedbackPriceUsd}
+                      Current state: {proFeedbackEnabled ? "ON" : "OFF"} • Charge: ${proFeedbackPriceUsd} • Split: ${proFeedbackOwnerShareUsd} owner / ${proFeedbackProShareUsd} pro • Weekly payout:{" "}
+                      {proFeedbackWeeklyPayoutDay} • PayPal{" "}
+                      {isOpenableExternalUrl(buildPayPalMeCheckoutUrl(proFeedback.paypalMeUrl || "", proFeedbackPriceUsd)) || looksLikeEmail(proFeedback.paypalEmail || "")
+                        ? "ready"
+                        : "not set"}
                     </div>
                   </div>
                 </div>
@@ -8669,7 +12491,7 @@ export default function SkateTrainingPlanApp() {
                     </button>
                     <Pill tone="neutral" lightMode={isLightMode}>
                       Last: {cloudSync.lastDirection ? `${cloudSync.lastDirection} • ` : ""}
-                      {cloudSync.lastSyncAt ? new Date(cloudSync.lastSyncAt).toLocaleString() : "never"}
+                      {cloudSync.lastSyncAt ? formatDateTime(cloudSync.lastSyncAt) : "never"}
                     </Pill>
                     {cloudSync.autoSyncEnabled ? (
                       <Pill tone="cyan" lightMode={isLightMode}>
@@ -8717,7 +12539,7 @@ export default function SkateTrainingPlanApp() {
                     <Pill tone="neutral" lightMode={isLightMode}>Total {betaStats.total}</Pill>
                     {betaCheck.updatedAt ? (
                       <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/50"}`}>
-                        Updated {new Date(betaCheck.updatedAt).toLocaleString()}
+                        Updated {formatDateTime(betaCheck.updatedAt)}
                       </div>
                     ) : null}
                   </div>
@@ -8777,7 +12599,7 @@ export default function SkateTrainingPlanApp() {
                         <Pill tone="warn" lightMode={isLightMode}>Warn {healthReport.summary.warn}</Pill>
                         <Pill tone="bad" lightMode={isLightMode}>Fail {healthReport.summary.fail}</Pill>
                         <Pill tone="neutral" lightMode={isLightMode}>Total {healthReport.summary.total}</Pill>
-                        <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/50"}`}>Last run {new Date(healthReport.generatedAt).toLocaleString()}</div>
+                        <div className={`text-[11px] ${isLightMode ? "text-slate-500" : "text-white/50"}`}>Last run {formatDateTime(healthReport.generatedAt)}</div>
                       </div>
                       <div className="mt-3 space-y-2 max-h-64 overflow-auto">
                         {healthReport.checks.map((c) => (
@@ -8814,6 +12636,13 @@ export default function SkateTrainingPlanApp() {
           {parkAutocompleteOptions.map((p) => (
             <option key={`${p.name}|${p.location}`} value={p.name}>
               {p.location || ""}
+            </option>
+          ))}
+        </datalist>
+        <datalist id="trick-name-list">
+          {SKATE_TRICK_LIBRARY.map((trick) => (
+            <option key={trick.id} value={trick.name}>
+              {trick.categoryLabel}
             </option>
           ))}
         </datalist>
@@ -8938,6 +12767,7 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
             <div className="mt-2 grid grid-cols-2 gap-2">
               {(session.media || []).slice(0, 4).map((m) => {
                 const isVideo = m.type?.startsWith("video/");
+                const trickLabel = String(m?.trickAssist?.selectedTrickName || "").trim();
                 return (
                   <div key={m.id} className="rounded-2xl overflow-hidden bg-black ring-1 ring-white/10">
                     <div className="aspect-square">
@@ -8959,6 +12789,7 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
                         />
                       )}
                     </div>
+                    {isVideo && trickLabel ? <div className="px-2 py-1.5 text-[11px] text-cyan-200 bg-black/70 ring-1 ring-white/10">Trick: {trickLabel}</div> : null}
                     {canComment ? (
                       <div className="p-2 bg-black/60 ring-1 ring-white/10">
                         {isVideo && canEditMedia ? (
@@ -9042,9 +12873,9 @@ function SessionCard({ session, onEdit, onEditMedia, onShare, onDelete, canComme
   );
 }
 
-function ProgressCard({ card, skater }) {
+function ProgressCard({ card, skater, locale = undefined }) {
   const meta = card.meta || card.park || "";
-  const dateLabel = formatShortDate(card.date || todayISO());
+  const dateLabel = formatShortDate(card.date || todayISO(), locale);
 
   const spec =
     card.type === "levelup"
@@ -9080,7 +12911,7 @@ function ProgressCard({ card, skater }) {
       <div className="relative z-10 px-4 pt-4">
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
-            <div className="text-[11px] font-extrabold tracking-[0.28em] text-white/60">SKATEFLOW • {spec.tag}</div>
+            <div className="text-[11px] font-extrabold tracking-[0.28em] text-white/60">{APP_WORDMARK} • {spec.tag}</div>
             <div className={`mt-1 text-xl font-extrabold tracking-tight ${spec.title}`}>{card.title}</div>
             <div className="mt-1 text-sm text-white/70 truncate">{card.subtitle}</div>
           </div>
