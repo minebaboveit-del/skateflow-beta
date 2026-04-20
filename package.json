@@ -8,10 +8,12 @@
     "build": "vite build",
     "preview": "vite preview",
     "deploy": "npm run build && npx firebase-tools deploy --only hosting --project skaterflow",
+    "deploy:rules": "npx firebase-tools deploy --only firestore:rules,storage --project skaterflow",
     "deploy:ci": "npm run build && npx firebase-tools deploy --only hosting --project skaterflow --token \"$FIREBASE_TOKEN\"",
     "deploy:beta": "npm run build && npx firebase-tools hosting:channel:deploy beta --project skaterflow"
   },
   "dependencies": {
+    "firebase": "^11.10.0",
     "framer-motion": "^11.18.2",
     "lucide-react": "^0.511.0",
     "react": "^18.3.1",

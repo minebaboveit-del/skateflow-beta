@@ -1,0 +1,49 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function roleValue() {
+      return isSignedIn() && request.auth.token.role is string
+        ? request.auth.token.role
+        : "";
+    }
+
+    function hasRole(role) {
+      return roleValue() == role;
+    }
+
+    function hasAnyRole() {
+      return roleValue() in ["owner", "coach", "dad", "proskater", "media", "skater"];
+    }
+
+    function canWriteSyncState() {
+      return roleValue() in ["owner", "coach", "dad", "proskater"] || request.auth.token.admin == true;
+    }
+
+    function validSyncPayload() {
+      return request.resource.data.keys().hasOnly(["payload", "updatedAt", "updatedBy", "buildStamp"])
+        && request.resource.data.payload is string
+        && request.resource.data.payload.size() > 0
+        && request.resource.data.payload.size() < 900000
+        && request.resource.data.updatedBy is string
+        && request.resource.data.buildStamp is string
+        && request.resource.data.updatedAt is timestamp;
+    }
+
+    // Default AthleteFlow sync doc path.
+    // If you change documentPath in the app, update this match path too.
+    match /skateflow/sharedState {
+      allow get, list: if isSignedIn() && hasAnyRole();
+      allow create, update: if isSignedIn() && canWriteSyncState() && validSyncPayload();
+      allow delete: if isSignedIn() && (hasRole("owner") || request.auth.token.admin == true);
+    }
+
+    // Deny everything else by default.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

@@ -17,6 +17,11 @@ This builds the app and deploys `dist/` to Firebase Hosting.
 
 This publishes to a temporary `beta` Hosting channel URL.
 
+## Deploy security rules
+- `npm run deploy:rules`
+
+Deploys `firestore.rules` and `storage.rules` to the `skaterflow` project.
+
 ## Permanent auto-deploy from GitHub
 This repo includes:
 - `.github/workflows/firebase-hosting-deploy.yml`

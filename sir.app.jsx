@@ -1,5 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { getApps as getFirebaseApps, initializeApp as initializeFirebaseApp } from "firebase/app";
+import { getToken as getFirebaseAppCheckToken, initializeAppCheck as initializeFirebaseAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+import { getAuth as getFirebaseAuth, onAuthStateChanged as onFirebaseAuthStateChanged, signInAnonymously as signInAnonymouslyFirebase } from "firebase/auth";
 import {
   BarChart3,
   Bell,
@@ -44,6 +47,12 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
+
+const FIREBASE_CLOUDSYNC_AUTH_MODE = String(import.meta.env.VITE_FIREBASE_CLOUDSYNC_AUTH_MODE || "anonymous")
+  .trim()
+  .toLowerCase();
+const FIREBASE_APPCHECK_SITE_KEY = String(import.meta.env.VITE_FIREBASE_APPCHECK_SITE_KEY || "").trim();
+const FIREBASE_CLOUDSYNC_AUTH_DISABLED = FIREBASE_CLOUDSYNC_AUTH_MODE === "none";
 
 const STORAGE_KEY = "skateflow_clean_v1";
 const APP_NAME = "Athlete Flow Training Hub";
@@ -1283,6 +1292,132 @@ function normalizeFirebaseProjectId(value) {
     .trim()
     .toLowerCase()
     .replace(/[^a-z0-9-]/g, "");
+}
+
+const firebaseCloudSyncRuntime = {
+  app: null,
+  appKey: "",
+  appCheck: null,
+  appCheckReady: false,
+  appCheckKey: "",
+};
+
+function buildFirebaseWebConfigForCloudSync(config) {
+  const projectId = normalizeFirebaseProjectId(config?.projectId);
+  const apiKey = String(config?.apiKey || "").trim();
+  if (!projectId || !apiKey) return null;
+  return {
+    apiKey,
+    projectId,
+    authDomain: `${projectId}.firebaseapp.com`,
+    storageBucket: `${projectId}.appspot.com`,
+  };
+}
+
+function getFirebaseCloudSyncApp(config) {
+  const firebaseConfig = buildFirebaseWebConfigForCloudSync(config);
+  if (!firebaseConfig) return null;
+  const appKey = `${firebaseConfig.projectId}|${firebaseConfig.apiKey}`;
+  if (firebaseCloudSyncRuntime.app && firebaseCloudSyncRuntime.appKey === appKey) return firebaseCloudSyncRuntime.app;
+  const appName = "athleteflow-cloud-sync";
+  const app = getFirebaseApps().find((entry) => entry.name === appName) || initializeFirebaseApp(firebaseConfig, appName);
+  firebaseCloudSyncRuntime.app = app;
+  firebaseCloudSyncRuntime.appKey = appKey;
+  firebaseCloudSyncRuntime.appCheck = null;
+  firebaseCloudSyncRuntime.appCheckReady = false;
+  firebaseCloudSyncRuntime.appCheckKey = "";
+  return app;
+}
+
+async function waitForFirebaseAuthUser(auth, timeoutMs = 8000) {
+  if (!auth) return null;
+  if (auth.currentUser) return auth.currentUser;
+  return await new Promise((resolve) => {
+    let done = false;
+    const stop = onFirebaseAuthStateChanged(
+      auth,
+      (user) => {
+        if (done) return;
+        done = true;
+        try {
+          stop();
+        } catch {
+          // ignore
+        }
+        resolve(user || null);
+      },
+      () => {
+        if (done) return;
+        done = true;
+        try {
+          stop();
+        } catch {
+          // ignore
+        }
+        resolve(null);
+      }
+    );
+    window.setTimeout(() => {
+      if (done) return;
+      done = true;
+      try {
+        stop();
+      } catch {
+        // ignore
+      }
+      resolve(auth.currentUser || null);
+    }, Math.max(2000, Number(timeoutMs) || 8000));
+  });
+}
+
+async function getCloudSyncAuthIdToken(config) {
+  if (FIREBASE_CLOUDSYNC_AUTH_DISABLED) return "";
+  try {
+    const app = getFirebaseCloudSyncApp(config);
+    if (!app) return "";
+    const auth = getFirebaseAuth(app);
+    if (!auth.currentUser && FIREBASE_CLOUDSYNC_AUTH_MODE === "anonymous") {
+      await signInAnonymouslyFirebase(auth);
+    }
+    const user = auth.currentUser || (await waitForFirebaseAuthUser(auth));
+    if (!user) return "";
+    return await user.getIdToken();
+  } catch (err) {
+    console.warn("Cloud sync auth token unavailable:", err);
+    return "";
+  }
+}
+
+async function getCloudSyncAppCheckToken(config) {
+  if (!FIREBASE_APPCHECK_SITE_KEY) return "";
+  try {
+    const app = getFirebaseCloudSyncApp(config);
+    if (!app) return "";
+    const appCheckKey = `${firebaseCloudSyncRuntime.appKey}|${FIREBASE_APPCHECK_SITE_KEY}`;
+    if (!firebaseCloudSyncRuntime.appCheckReady || firebaseCloudSyncRuntime.appCheckKey !== appCheckKey) {
+      firebaseCloudSyncRuntime.appCheck = initializeFirebaseAppCheck(app, {
+        provider: new ReCaptchaEnterpriseProvider(FIREBASE_APPCHECK_SITE_KEY),
+        isTokenAutoRefreshEnabled: true,
+      });
+      firebaseCloudSyncRuntime.appCheckReady = true;
+      firebaseCloudSyncRuntime.appCheckKey = appCheckKey;
+    }
+    if (!firebaseCloudSyncRuntime.appCheck) return "";
+    const tokenResult = await getFirebaseAppCheckToken(firebaseCloudSyncRuntime.appCheck, false);
+    return String(tokenResult?.token || "");
+  } catch (err) {
+    console.warn("Cloud sync App Check token unavailable:", err);
+    return "";
+  }
+}
+
+async function buildCloudSyncRequestHeaders(config, opts = {}) {
+  const headers = {};
+  if (opts.contentType !== false) headers["Content-Type"] = "application/json";
+  const [idToken, appCheckToken] = await Promise.all([getCloudSyncAuthIdToken(config), getCloudSyncAppCheckToken(config)]);
+  if (idToken) headers.Authorization = `Bearer ${idToken}`;
+  if (appCheckToken) headers["X-Firebase-AppCheck"] = appCheckToken;
+  return headers;
 }
 
 function buildFirestoreDocUrl(config) {
@@ -5021,6 +5156,15 @@ export default function SkateTrainingPlanApp() {
     if (/Permission denied on resource project/i.test(msg)) {
       return `${msg} Use lowercase project ID "skaterflow" and make sure Firestore Database is created in Firebase.`;
     }
+    if (/Missing or insufficient permissions|PERMISSION_DENIED/i.test(msg)) {
+      return `${msg} Check firestore.rules for your sync path and make sure this account has a role claim (owner/coach/dad/proskater for write).`;
+    }
+    if (/UNAUTHENTICATED|authentication credentials|Request had invalid authentication credentials/i.test(msg)) {
+      return `${msg} Enable Firebase Auth (Anonymous is fine for beta) and make sure authorized domains include this Hosting URL.`;
+    }
+    if (/AppCheck|APP_CHECK_TOKEN|app check/i.test(msg)) {
+      return `${msg} If App Check enforcement is on, set VITE_FIREBASE_APPCHECK_SITE_KEY and register this domain in App Check.`;
+    }
     return msg;
   };
 
@@ -5053,9 +5197,10 @@ export default function SkateTrainingPlanApp() {
           buildStamp: { stringValue: BUILD_STAMP },
         },
       };
+      const headers = await buildCloudSyncRequestHeaders(cfg, { contentType: true });
       const res = await fetch(url, {
         method: "PATCH",
-        headers: { "Content-Type": "application/json" },
+        headers,
         body: JSON.stringify(body),
       });
       if (!res.ok) {
@@ -5097,7 +5242,8 @@ export default function SkateTrainingPlanApp() {
       const cfg = validateCloudSyncConfig();
       const url = buildFirestoreDocUrl(cfg);
       if (!url) throw new Error("Cloud sync URL is invalid.");
-      const res = await fetch(url, { method: "GET" });
+      const headers = await buildCloudSyncRequestHeaders(cfg, { contentType: false });
+      const res = await fetch(url, { method: "GET", headers });
       if (res.status === 404) {
         throw new Error("No cloud document found yet. Push first from this or another device.");
       }
@@ -12393,7 +12539,7 @@ export default function SkateTrainingPlanApp() {
                 <div className={`mt-4 ${settingsCardClass}`}>
                   <div className="text-sm font-semibold">Cloud Sync (Firebase Firestore)</div>
                   <div className={settingsMutedTextClass}>
-                    Always-on sync for beta: app auto-pulls on open and syncs every minute across devices.
+                    Always-on sync for beta: app auto-pulls on open and syncs every minute across devices. Sync requests now attach Firebase Auth tokens and optional App Check tokens when configured.
                   </div>
                   <div className="mt-3 grid grid-cols-1 lg:grid-cols-3 gap-2">
                     <input
@@ -12498,12 +12644,18 @@ export default function SkateTrainingPlanApp() {
                         Auto every {Math.max(1, Number(cloudSync.autoSyncIntervalMin) || 1)}m
                       </Pill>
                     ) : null}
+                    <Pill tone={FIREBASE_CLOUDSYNC_AUTH_DISABLED ? "warn" : "good"} lightMode={isLightMode}>
+                      Auth: {FIREBASE_CLOUDSYNC_AUTH_DISABLED ? "off (not recommended)" : FIREBASE_CLOUDSYNC_AUTH_MODE}
+                    </Pill>
+                    <Pill tone={FIREBASE_APPCHECK_SITE_KEY ? "good" : "warn"} lightMode={isLightMode}>
+                      App Check: {FIREBASE_APPCHECK_SITE_KEY ? "enabled" : "env key missing"}
+                    </Pill>
                   </div>
                   {cloudSyncError ? (
                     <div className={`mt-2 text-xs ${isLightMode ? "text-rose-700" : "text-rose-200"}`}>{cloudSyncError}</div>
                   ) : (
                     <div className={`mt-2 text-xs ${isLightMode ? "text-slate-600" : "text-white/60"}`}>
-                      Firestore rule tip for beta: allow read/write to your sync doc path only.
+                      Security tip: keep Firestore rules locked to your sync doc path, use role claims for write, and add this beta domain under Firebase Auth authorized domains.
                     </div>
                   )}
                 </div>
